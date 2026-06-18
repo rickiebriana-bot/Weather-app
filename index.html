@@ -77,67 +77,98 @@ button{
 
 async function run(){
 
-const location =
-document.getElementById("location").value.trim();
+    const locationInput = document.getElementById("location").value.trim();
 
-if(!location){
-    alert("Enter a location");
-    return;
-}
+    if(!locationInput){
+        alert("Enter a location");
+        return;
+    }
 
-document.getElementById("results").innerHTML =
-"Loading...";
+    document.getElementById("results").innerHTML = "Loading...";
 
-try{
+    // Split input like "Boston, MA" into city and optional state/country
+    const parts = locationInput.split(',').map(p => p.trim()).filter(Boolean);
+    const cityQuery = parts[0];
+    const regionPart = parts[1] || null; // could be "MA" or "Massachusetts" or "US"
 
-const geo = await fetch(
-`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1`
-);
+    // US state abbreviations -> full name map (used when user types "MA")
+    const US_STATES = {
+      "AL":"Alabama","AK":"Alaska","AZ":"Arizona","AR":"Arkansas","CA":"California","CO":"Colorado","CT":"Connecticut",
+      "DE":"Delaware","FL":"Florida","GA":"Georgia","HI":"Hawaii","ID":"Idaho","IL":"Illinois","IN":"Indiana","IA":"Iowa",
+      "KS":"Kansas","KY":"Kentucky","LA":"Louisiana","ME":"Maine","MD":"Maryland","MA":"Massachusetts","MI":"Michigan",
+      "MN":"Minnesota","MS":"Mississippi","MO":"Missouri","MT":"Montana","NE":"Nebraska","NV":"Nevada","NH":"New Hampshire",
+      "NJ":"New Jersey","NM":"New Mexico","NY":"New York","NC":"North Carolina","ND":"North Dakota","OH":"Ohio","OK":"Oklahoma",
+      "OR":"Oregon","PA":"Pennsylvania","RI":"Rhode Island","SC":"South Carolina","SD":"South Dakota","TN":"Tennessee",
+      "TX":"Texas","UT":"Utah","VT":"Vermont","VA":"Virginia","WA":"Washington","WV":"West Virginia","WI":"Wisconsin",
+      "WY":"Wyoming","DC":"District of Columbia"
+    };
 
-const geoData = await geo.json();
+    try{
 
-if(!geoData.results || geoData.results.length === 0){
+        // Ask for more candidates so we can filter by state/country if needed
+        const geo = await fetch(
+            `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityQuery)}&count=10`
+        );
 
-document.getElementById("results").innerHTML =
-"Location not found";
+        const geoData = await geo.json();
 
-return;
-}
+        if(!geoData.results || geoData.results.length === 0){
+            document.getElementById("results").innerHTML = "Location not found";
+            return;
+        }
 
-const result = geoData.results[0];
+        // If user provided a region (state or country), try to find the candidate that matches it
+        let candidates = geoData.results;
 
-console.log("Geocoding Result:", result);
+        if(regionPart){
+            const regionUpper = regionPart.toUpperCase();
+            const regionLower = regionPart.toLowerCase();
+            const regionFullState = US_STATES[regionUpper] || null;
 
-const lat = result.latitude;
-const lon = result.longitude;
+            candidates = candidates.filter(r => {
+                // r.admin1 is typically the state/province name (e.g., "Massachusetts")
+                if(r.admin1){
+                    const admin1 = r.admin1.toLowerCase();
+                    if(regionFullState && admin1 === regionFullState.toLowerCase()) return true;
+                    if(admin1 === regionLower) return true;
+                }
+                // r.country and r.country_code may be available
+                if(r.country && r.country.toLowerCase() === regionLower) return true;
+                if(r.country_code && r.country_code.toUpperCase() === regionUpper) return true;
 
-const locationName = [
-result.name,
-result.admin1,
-result.country
-].filter(Boolean).join(", ");
+                // no match
+                return false;
+            });
+        }
 
-const weather = await fetch(
+        // Choose the filtered candidate if any, otherwise fall back to the top result
+        const result = (candidates.length > 0 ? candidates[0] : geoData.results[0]);
+
+        console.log("Geocoding Result:", result);
+
+        const lat = result.latitude;
+        const lon = result.longitude;
+
+        const locationName = [
+            result.name,
+            result.admin1,
+            result.country
+        ].filter(Boolean).join(", ");
+
+        const weather = await fetch(
 `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=precipitation_probability&daily=temperature_2m_max,temperature_2m_min,precipitation_hours&forecast_days=7&temperature_unit=fahrenheit&timezone=auto`
-);
+        );
 
-const weatherData = await weather.json();
+        const weatherData = await weather.json();
 
-console.log("Weather Data:", weatherData);
+        console.log("Weather Data:", weatherData);
 
-const hourly =
-weatherData.hourly.precipitation_probability;
+        const hourly = weatherData.hourly.precipitation_probability;
+        const highs = weatherData.daily.temperature_2m_max;
+        const lows = weatherData.daily.temperature_2m_min;
+        const precipHours = weatherData.daily.precipitation_hours;
 
-const highs =
-weatherData.daily.temperature_2m_max;
-
-const lows =
-weatherData.daily.temperature_2m_min;
-
-const precipHours =
-weatherData.daily.precipitation_hours;
-
-let html = `
+        let html = `
 <h2>${locationName}</h2>
 
 <div class="locationInfo">
@@ -147,71 +178,68 @@ Lon: ${lon.toFixed(4)}
 </div>
 `;
 
-let bestScore = -1;
-let bestDay = 0;
+        let bestScore = -1;
+        let bestDay = 0;
 
-const days = [];
+        const days = [];
 
-for(let day=0; day<7; day++){
+        for(let day=0; day<7; day++){
 
-let expectedRain = 0;
+            let expectedRain = 0;
 
-for(let h=0; h<24; h++){
+            for(let h=0; h<24; h++){
+                const chance =
+                    hourly[(day * 24) + h] || 0;
+                expectedRain += chance / 100;
+            }
 
-const chance =
-hourly[(day * 24) + h] || 0;
+            const expectedDry =
+                24 - expectedRain;
 
-expectedRain += chance / 100;
+            const score =
+                Math.round((expectedDry / 24) * 100);
 
-}
+            days.push({
+                expectedRain,
+                expectedDry,
+                score
+            });
 
-const expectedDry =
-24 - expectedRain;
+            if(score > bestScore){
+                bestScore = score;
+                bestDay = day;
+            }
 
-const score =
-Math.round((expectedDry / 24) * 100);
+        }
 
-days.push({
-expectedRain,
-expectedDry,
-score
-});
+        const weekdayNames = [];
 
-if(score > bestScore){
-bestScore = score;
-bestDay = day;
-}
+        for(let i = 0; i < 7; i++){
 
-}
+            const date = new Date();
 
-const weekdayNames = [];
+            date.setDate(date.getDate() + i);
 
-for(let i = 0; i < 7; i++){
+            if(i === 0){
+                weekdayNames.push("Today");
+            }
+            else if(i === 1){
+                weekdayNames.push("Tomorrow");
+            }
+            else{
+                weekdayNames.push(
+                    date.toLocaleDateString(
+                        "en-US",
+                        { weekday: "long" }
+                    )
+                );
+            }
 
-const date = new Date();
+        }
 
-date.setDate(date.getDate() + i);
+        days.forEach((d,index)=>{
 
-if(i === 0){
-weekdayNames.push("Today");
-}
-else if(i === 1){
-weekdayNames.push("Tomorrow");
-}
-else{
-weekdayNames.push(
-date.toLocaleDateString(
-"en-US",
-{ weekday: "long" }
-)
-);
-}
-
-}
-
-days.forEach((d,index)=>{
-
-html += `
+            html += `
 <div class="card ${index===bestDay?'best':''}">
 
 <div class="score">
@@ -248,20 +276,20 @@ ${index===bestDay ? "🏆 Best Outdoor Day" : ""}
 </div>
 `;
 
-});
+        });
 
-document.getElementById("results").innerHTML =
-html;
+        document.getElementById("results").innerHTML =
+            html;
 
-}
-catch(error){
+    }
+    catch(error){
 
-console.log(error);
+        console.log(error);
 
-document.getElementById("results").innerHTML =
-"Error loading weather data";
+        document.getElementById("results").innerHTML =
+            "Error loading weather data";
 
-}
+    }
 
 }
 
