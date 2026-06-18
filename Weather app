@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weather Reality</title>
+
+<style>
+body{
+    font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+    background:#f3f4f6;
+    margin:0;
+    padding:20px;
+}
+h1{
+    text-align:center;
+}
+.search{
+    text-align:center;
+    margin-bottom:20px;
+}
+input{
+    padding:12px;
+    width:260px;
+    border-radius:10px;
+    border:1px solid #ccc;
+}
+button{
+    padding:12px;
+    border:none;
+    border-radius:10px;
+    background:#007aff;
+    color:white;
+}
+.card{
+    background:white;
+    border-radius:14px;
+    padding:16px;
+    margin-bottom:12px;
+    box-shadow:0 2px 8px rgba(0,0,0,.08);
+}
+.score{
+    font-size:34px;
+    font-weight:bold;
+}
+.best{
+    border:3px solid #22c55e;
+}
+.small{
+    color:#666;
+    margin-top:8px;
+}
+.temp{
+    margin-top:6px;
+    font-size:16px;
+}
+.locationInfo{
+    color:#666;
+    font-size:14px;
+    margin-bottom:20px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>☀️ Weather Reality</h1>
+
+<div class="search">
+    <input id="location" placeholder="City, State (e.g. Revere, MA)">
+    <button onclick="run()">Check</button>
+</div>
+
+<div id="results"></div>
+
+<script>
+
+async function run(){
+
+const location =
+document.getElementById("location").value.trim();
+
+if(!location){
+    alert("Enter a location");
+    return;
+}
+
+document.getElementById("results").innerHTML =
+"Loading...";
+
+try{
+
+const geo = await fetch(
+`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1`
+);
+
+const geoData = await geo.json();
+
+if(!geoData.results || geoData.results.length === 0){
+
+document.getElementById("results").innerHTML =
+"Location not found";
+
+return;
+}
+
+const result = geoData.results[0];
+
+console.log("Geocoding Result:", result);
+
+const lat = result.latitude;
+const lon = result.longitude;
+
+const locationName = [
+result.name,
+result.admin1,
+result.country
+].filter(Boolean).join(", ");
+
+const weather = await fetch(
+`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=precipitation_probability&daily=temperature_2m_max,temperature_2m_min,precipitation_hours&forecast_days=7&temperature_unit=fahrenheit&timezone=auto`
+);
+
+const weatherData = await weather.json();
+
+console.log("Weather Data:", weatherData);
+
+const hourly =
+weatherData.hourly.precipitation_probability;
+
+const highs =
+weatherData.daily.temperature_2m_max;
+
+const lows =
+weatherData.daily.temperature_2m_min;
+
+const precipHours =
+weatherData.daily.precipitation_hours;
+
+let html = `
+<h2>${locationName}</h2>
+
+<div class="locationInfo">
+📍 Lat: ${lat.toFixed(4)}
+&nbsp;&nbsp;
+Lon: ${lon.toFixed(4)}
+</div>
+`;
+
+let bestScore = -1;
+let bestDay = 0;
+
+const days = [];
+
+for(let day=0; day<7; day++){
+
+let expectedRain = 0;
+
+for(let h=0; h<24; h++){
+
+const chance =
+hourly[(day * 24) + h] || 0;
+
+expectedRain += chance / 100;
+
+}
+
+const expectedDry =
+24 - expectedRain;
+
+const score =
+Math.round((expectedDry / 24) * 100);
+
+days.push({
+expectedRain,
+expectedDry,
+score
+});
+
+if(score > bestScore){
+bestScore = score;
+bestDay = day;
+}
+
+}
+
+const weekdayNames = [];
+
+for(let i = 0; i < 7; i++){
+
+const date = new Date();
+
+date.setDate(date.getDate() + i);
+
+if(i === 0){
+weekdayNames.push("Today");
+}
+else if(i === 1){
+weekdayNames.push("Tomorrow");
+}
+else{
+weekdayNames.push(
+date.toLocaleDateString(
+"en-US",
+{ weekday: "long" }
+)
+);
+}
+
+}
+
+days.forEach((d,index)=>{
+
+html += `
+<div class="card ${index===bestDay?'best':''}">
+
+<div class="score">
+${d.score}% Dry
+</div>
+
+<strong>${weekdayNames[index]}</strong>
+
+<div class="temp">
+🌡️ High: ${Math.round(highs[index])}°
+&nbsp;&nbsp;
+❄️ Low: ${Math.round(lows[index])}°
+</div>
+
+<br>
+
+☀️ Expected Dry Time:
+<b>${d.expectedDry.toFixed(1)} hrs</b>
+
+<br>
+
+🌧️ Expected Rain Time:
+<b>${d.expectedRain.toFixed(1)} hrs</b>
+
+<br>
+
+💧 Model Rain Hours:
+<b>${precipHours[index].toFixed(1)} hrs</b>
+
+<div class="small">
+${index===bestDay ? "🏆 Best Outdoor Day" : ""}
+</div>
+
+</div>
+`;
+
+});
+
+document.getElementById("results").innerHTML =
+html;
+
+}
+catch(error){
+
+console.log(error);
+
+document.getElementById("results").innerHTML =
+"Error loading weather data";
+
+}
+
+}
+
+</script>
+
+</body>
+</html>
