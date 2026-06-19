@@ -20,12 +20,11 @@ h1{text-align:center;}
     margin-bottom:20px;
 }
 
-input, select{
+input{
     padding:12px;
     width:260px;
     border-radius:10px;
     border:1px solid #ccc;
-    margin:4px;
 }
 
 button{
@@ -34,6 +33,7 @@ button{
     border-radius:10px;
     background:#007aff;
     color:white;
+    margin-left:6px;
 }
 
 .card{
@@ -44,23 +44,23 @@ button{
     box-shadow:0 2px 8px rgba(0,0,0,.08);
 }
 
-.score{
-    font-size:40px;
-    font-weight:bold;
-}
-
 .best{
     border:3px solid #22c55e;
 }
 
-.small{
-    color:#666;
-    margin-top:8px;
+.icon{
+    font-size:34px;
 }
 
-.temp{
+.small{
+    color:#666;
     margin-top:6px;
-    font-size:16px;
+}
+
+.score{
+    font-size:18px;
+    font-weight:bold;
+    margin-top:6px;
 }
 
 .locationInfo{
@@ -76,17 +76,7 @@ button{
 <h1>☀️ Weather Reality</h1>
 
 <div class="search">
-
     <input id="location" placeholder="City, State (e.g. Revere, MA)">
-
-    <select id="activity">
-        <option value="golf">⛳ Golf</option>
-        <option value="beach">🏖 Beach</option>
-        <option value="bbq">🍔 BBQ</option>
-        <option value="walk">🚶 Walk</option>
-        <option value="default">🌤 General</option>
-    </select>
-
     <button onclick="run()">Check</button>
 </div>
 
@@ -94,10 +84,39 @@ button{
 
 <script>
 
+function getIcon(score){
+    if(score >= 80) return "☀️";
+    if(score >= 60) return "⛅";
+    if(score >= 40) return "🌥";
+    return "🌧";
+}
+
+function getLabel(score){
+    if(score >= 80) return "Great day";
+    if(score >= 60) return "Good day";
+    if(score >= 40) return "Mixed";
+    return "Poor conditions";
+}
+
+function detectRainEvents(values, threshold=40){
+    let events = 0;
+    let inEvent = false;
+
+    for(let v of values){
+        if(v >= threshold && !inEvent){
+            events++;
+            inEvent = true;
+        } else if(v < threshold){
+            inEvent = false;
+        }
+    }
+
+    return events;
+}
+
 async function run(){
 
     const locationInput = document.getElementById("location").value.trim();
-    const activity = document.getElementById("activity").value;
 
     if(!locationInput){
         alert("Enter a location");
@@ -106,29 +125,12 @@ async function run(){
 
     document.getElementById("results").innerHTML = "Loading...";
 
-    const parts = locationInput.split(',').map(p => p.trim()).filter(Boolean);
-    const cityQuery = parts[0];
-    const regionPart = parts[1] || null;
-
-    const activityRules = {
-        golf:   { start: 8, end: 15, rainTolerance: 2.5 },
-        beach:  { start: 10, end: 18, rainTolerance: 1.5 },
-        bbq:    { start: 15, end: 21, rainTolerance: 3.5 },
-        walk:   { start: 7, end: 20, rainTolerance: 4 },
-        default:{ start: 7, end: 21, rainTolerance: 3 }
-    };
-
-    const rule = activityRules[activity];
-
-    const US_STATES = {
-      "MA":"Massachusetts","CA":"California","NY":"New York"
-      // (kept short for readability — your full map is fine too)
-    };
+    const cityQuery = locationInput.split(',')[0];
 
     try{
 
         const geo = await fetch(
-            `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityQuery)}&count=5`
+            `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityQuery)}&count=1`
         );
 
         const geoData = await geo.json();
@@ -138,79 +140,101 @@ async function run(){
             return;
         }
 
-        const result = geoData.results[0];
-
-        const lat = result.latitude;
-        const lon = result.longitude;
-
-        const locationName = `${result.name}, ${result.admin1 || ""}`.replace(", ,", ",");
+        const { latitude, longitude, name, admin1 } = geoData.results[0];
 
         const weather = await fetch(
-`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=precipitation_probability&forecast_days=7&timezone=auto`
+`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=precipitation_probability&forecast_days=7&timezone=auto`
         );
 
-        const weatherData = await weather.json();
-        const hourly = weatherData.hourly.precipitation_probability;
+        const data = await weather.json();
+
+        const times = data.hourly.time;
+        const precip = data.hourly.precipitation_probability;
+
+        const days = {};
+
+        // group by date
+        times.forEach((t, i) => {
+            const date = t.split("T")[0];
+            const hour = parseInt(t.split("T")[1].slice(0,2));
+
+            if(!days[date]){
+                days[date] = [];
+            }
+
+            days[date].push({ hour, value: precip[i] || 0 });
+        });
+
+        const dayKeys = Object.keys(days).slice(0,7);
+
+        let results = [];
+        let bestIndex = 0;
+        let bestScore = -Infinity;
+
+        dayKeys.forEach((date, idx) => {
+
+            const entries = days[date];
+
+            // only daytime hours 7–19
+            const daytime = entries.filter(e => e.hour >= 7 && e.hour <= 19);
+
+            const values = daytime.map(e => e.value);
+
+            const avgRain = values.reduce((a,b)=>a+b,0) / (values.length || 1);
+
+            const rainEvents = detectRainEvents(values);
+
+            const score = 100 - (avgRain * 0.8 + rainEvents * 15);
+
+            const clamped = Math.max(0, Math.min(100, score));
+
+            if(clamped > bestScore){
+                bestScore = clamped;
+                bestIndex = idx;
+            }
+
+            results.push({
+                date,
+                score: clamped,
+                avgRain,
+                rainEvents
+            });
+        });
 
         let html = `
-<h2>${locationName}</h2>
-<div class="locationInfo">
-📍 Activity: <b>${activity.toUpperCase()}</b>
-</div>
+<h2>${name}, ${admin1 || ""}</h2>
+<div class="locationInfo">7-day “usable weather” forecast</div>
 `;
 
-        const days = [];
-        let bestIndex = 0;
+        results.forEach((d, i) => {
 
-        for(let day = 0; day < 7; day++){
+            const icon = getIcon(d.score);
+            const label = getLabel(d.score);
 
-            let risk = 0;
-
-            for(let h = rule.start; h <= rule.end; h++){
-                risk += (hourly[(day * 24) + h] || 0) / 100;
-            }
-
-            let rating = "";
-            let emoji = "";
-
-            if(risk <= rule.rainTolerance){
-                rating = "Great for " + activity;
-                emoji = "🟢";
-            } else if(risk <= rule.rainTolerance * 1.5){
-                rating = "Playable";
-                emoji = "🟡";
-            } else {
-                rating = "Bad conditions";
-                emoji = "🔴";
-            }
-
-            days.push({ risk, rating, emoji });
-
-            if(risk < (days[bestIndex]?.risk ?? 999)){
-                bestIndex = day;
-            }
-        }
-
-        const names = [];
-        for(let i=0;i<7;i++){
-            const d = new Date();
-            d.setDate(d.getDate()+i);
-            names.push(i===0?"Today":i===1?"Tomorrow":d.toLocaleDateString("en-US",{weekday:"long"}));
-        }
-
-        days.forEach((d,i)=>{
+            const dateObj = new Date(d.date);
+            const labelDate = i === 0 ? "Today" :
+                              i === 1 ? "Tomorrow" :
+                              dateObj.toLocaleDateString("en-US", { weekday:"long" });
 
             html += `
-<div class="card ${i===bestIndex?'best':''}">
+<div class="card ${i===bestIndex ? "best" : ""}">
 
-    <div class="score">${d.emoji}</div>
+    <div class="icon">${icon}</div>
 
-    <h3>${d.rating}</h3>
+    <h3>${label}</h3>
 
-    <strong>${names[i]}</strong>
+    <strong>${labelDate}</strong>
 
-    <div class="temp">
-        Rain risk score: <b>${d.risk.toFixed(1)}</b>
+    <div class="small">
+        Avg daytime rain: ${d.avgRain.toFixed(1)}%
+    </div>
+
+    <div class="score">
+        Score: ${d.score.toFixed(0)} / 100
+    </div>
+
+    <div class="small">
+        Rain events: ${d.rainEvents}
     </div>
 
 </div>
