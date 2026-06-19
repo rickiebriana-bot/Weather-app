@@ -1,248 +1,57 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Weather Reality</title>
+days.forEach((d,index)=>{
 
-<style>
-body{
-    font-family:-apple-system,BlinkMacSystemFont,sans-serif;
-    background:#f3f4f6;
-    margin:0;
-    padding:20px;
-}
-h1{
-    text-align:center;
-}
-.search{
-    text-align:center;
-    margin-bottom:10px;
-}
-input{
-    padding:12px;
-    width:260px;
-    border-radius:10px;
-    border:1px solid #ccc;
-    margin:4px;
-}
-button{
-    padding:12px;
-    border:none;
-    border-radius:10px;
-    background:#007aff;
-    color:white;
-}
-.card{
-    background:white;
-    border-radius:14px;
-    padding:16px;
-    margin-bottom:12px;
-    box-shadow:0 2px 8px rgba(0,0,0,.08);
-}
-.score{
-    font-size:40px;
-    font-weight:bold;
-}
-.best{
-    border:3px solid #22c55e;
-}
-.small{
-    color:#666;
-    margin-top:8px;
-}
-.temp{
-    margin-top:6px;
-    font-size:16px;
-}
-.locationInfo{
-    color:#666;
-    font-size:14px;
-    margin-bottom:20px;
-}
-.helper{
-    font-size:12px;
-    color:#777;
-}
-</style>
-</head>
+const start = startHour;
+const end = endHour;
 
-<body>
+// build hourly breakdown INSIDE window
+let hourlyText = "";
+let rainingBlocks = [];
 
-<h1>☀️ Weather Reality</h1>
+let currentRainStart = null;
 
-<div class="search">
-    <input id="location" placeholder="City, State (e.g. Revere, MA)">
-    <br>
+for(let h = start; h <= end; h++){
 
-    <input id="startHour" placeholder="Start hour (e.g. 9)">
-    <input id="endHour" placeholder="End hour (e.g. 13)">
+    const chance = hourly[(index * 24) + h] || 0;
 
-    <div class="helper">
-        Leave blank for default (7am–9pm)
+    const label = h === 12 ? "12 PM" :
+                  h > 12 ? (h - 12) + " PM" :
+                  h + " AM";
+
+    hourlyText += `
+    <div style="display:flex;justify-content:space-between;padding:2px 0;">
+        <div>${label}</div>
+        <div>${chance}%</div>
     </div>
+    `;
 
-    <button onclick="run()">Check</button>
-</div>
-
-<div id="results"></div>
-
-<script>
-
-async function run(){
-
-    const locationInput = document.getElementById("location").value.trim();
-
-    if(!locationInput){
-        alert("Enter a location");
-        return;
+    // detect rain blocks (>40% chance = meaningful rain)
+    if(chance >= 40){
+        if(currentRainStart === null){
+            currentRainStart = h;
+        }
+    } else {
+        if(currentRainStart !== null){
+            rainingBlocks.push([currentRainStart, h - 1]);
+            currentRainStart = null;
+        }
     }
+}
 
-    document.getElementById("results").innerHTML = "Loading...";
+if(currentRainStart !== null){
+    rainingBlocks.push([currentRainStart, end]);
+}
 
-    // activity window (NEW)
-    let startHour = parseInt(document.getElementById("startHour").value);
-    let endHour = parseInt(document.getElementById("endHour").value);
+// format rain summary
+let rainSummary = "☀️ No meaningful rain in your window";
 
-    if(isNaN(startHour)) startHour = 7;
-    if(isNaN(endHour)) endHour = 21;
+if(rainingBlocks.length > 0){
+    rainSummary = "🌧 Rain: " + rainingBlocks.map(b => {
+        const format = (h) => h === 12 ? "12pm" : h > 12 ? (h-12)+"pm" : h+"am";
+        return `${format(b[0])}–${format(b[1])}`;
+    }).join(", ");
+}
 
-    const parts = locationInput.split(',').map(p => p.trim()).filter(Boolean);
-    const cityQuery = parts[0];
-    const regionPart = parts[1] || null;
-
-    const US_STATES = {
-      "AL":"Alabama","AK":"Alaska","AZ":"Arizona","AR":"Arkansas","CA":"California","CO":"Colorado","CT":"Connecticut",
-      "DE":"Delaware","FL":"Florida","GA":"Georgia","HI":"Hawaii","ID":"Idaho","IL":"Illinois","IN":"Indiana","IA":"Iowa",
-      "KS":"Kansas","KY":"Kentucky","LA":"Louisiana","ME":"Maine","MD":"Maryland","MA":"Massachusetts","MI":"Michigan",
-      "MN":"Minnesota","MS":"Mississippi","MO":"Missouri","MT":"Montana","NE":"Nebraska","NV":"Nevada","NH":"New Hampshire",
-      "NJ":"New Jersey","NM":"New Mexico","NY":"New York","NC":"North Carolina","ND":"North Dakota","OH":"Ohio","OK":"Oklahoma",
-      "OR":"Oregon","PA":"Pennsylvania","RI":"Rhode Island","SC":"South Carolina","SD":"South Dakota","TN":"Tennessee",
-      "TX":"Texas","UT":"Utah","VT":"Vermont","VA":"Virginia","WA":"Washington","WV":"West Virginia","WI":"Wisconsin",
-      "WY":"Wyoming","DC":"District of Columbia"
-    };
-
-    try{
-
-        const geo = await fetch(
-            `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityQuery)}&count=10`
-        );
-
-        const geoData = await geo.json();
-
-        if(!geoData.results || geoData.results.length === 0){
-            document.getElementById("results").innerHTML = "Location not found";
-            return;
-        }
-
-        let candidates = geoData.results;
-
-        if(regionPart){
-            const regionUpper = regionPart.toUpperCase();
-            const regionLower = regionPart.toLowerCase();
-            const regionFullState = US_STATES[regionUpper] || null;
-
-            candidates = candidates.filter(r => {
-                if(r.admin1){
-                    const admin1 = r.admin1.toLowerCase();
-                    if(regionFullState && admin1 === regionFullState.toLowerCase()) return true;
-                    if(admin1 === regionLower) return true;
-                }
-                if(r.country && r.country.toLowerCase() === regionLower) return true;
-                if(r.country_code && r.country_code.toUpperCase() === regionUpper) return true;
-                return false;
-            });
-        }
-
-        const result = (candidates.length > 0 ? candidates[0] : geoData.results[0]);
-
-        const lat = result.latitude;
-        const lon = result.longitude;
-
-        const locationName = [
-            result.name,
-            result.admin1,
-            result.country
-        ].filter(Boolean).join(", ");
-
-        const weather = await fetch(
-`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=precipitation_probability&daily=temperature_2m_max,temperature_2m_min,precipitation_hours&forecast_days=7&temperature_unit=fahrenheit&timezone=auto`
-        );
-
-        const weatherData = await weather.json();
-
-        const hourly = weatherData.hourly.precipitation_probability;
-        const highs = weatherData.daily.temperature_2m_max;
-        const lows = weatherData.daily.temperature_2m_min;
-
-        let html = `
-<h2>${locationName}</h2>
-<div class="locationInfo">
-📍 Lat: ${lat.toFixed(4)} &nbsp;&nbsp; Lon: ${lon.toFixed(4)}
-</div>
-
-<div class="small">
-Activity window: <b>${startHour}:00 → ${endHour}:00</b>
-</div>
-`;
-
-        const days = [];
-        let bestIndex = 0;
-
-        for(let day = 0; day < 7; day++){
-
-            let expectedRain = 0;
-
-            for(let h = startHour; h <= endHour; h++){
-                const chance = hourly[(day * 24) + h] || 0;
-                expectedRain += chance / 100;
-            }
-
-            let rating = "";
-            let emoji = "";
-
-            if(expectedRain <= 1.5){
-                rating = "Excellent for Plans";
-                emoji = "🟢";
-            } else if(expectedRain <= 3){
-                rating = "Good for Plans";
-                emoji = "🟢";
-            } else if(expectedRain <= 5){
-                rating = "Mixed Conditions";
-                emoji = "🟡";
-            } else if(expectedRain <= 7){
-                rating = "Risky for Plans";
-                emoji = "🟠";
-            } else {
-                rating = "Poor for Plans";
-                emoji = "🔴";
-            }
-
-            days.push({
-                expectedRain,
-                rating,
-                emoji
-            });
-
-            if(expectedRain < days[bestIndex]?.expectedRain || day === 0){
-                bestIndex = day;
-            }
-        }
-
-        const weekdayNames = [];
-
-        for(let i = 0; i < 7; i++){
-            const date = new Date();
-            date.setDate(date.getDate() + i);
-
-            if(i === 0) weekdayNames.push("Today");
-            else if(i === 1) weekdayNames.push("Tomorrow");
-            else weekdayNames.push(date.toLocaleDateString("en-US",{weekday:"long"}));
-        }
-
-        days.forEach((d,index)=>{
-
-            html += `
+html += `
 <div class="card ${index === bestIndex ? 'best' : ''}">
 
     <div class="score">${d.emoji}</div>
@@ -252,33 +61,18 @@ Activity window: <b>${startHour}:00 → ${endHour}:00</b>
     <strong>${weekdayNames[index]}</strong>
 
     <div class="temp">
-        🌧️ Rain risk (your window): <b>${d.expectedRain.toFixed(1)} hrs equivalent</b>
+        ${rainSummary}
     </div>
 
-    <div class="small">
-        ${
-            d.expectedRain <= 1.5
-                ? "☀️ Very safe for outdoor plans"
-                : d.expectedRain <= 5
-                ? "🌤 Some interruptions possible"
-                : "🌧 Weather may disrupt plans"
-        }
+    <button onclick="this.nextElementSibling.style.display =
+        this.nextElementSibling.style.display === 'block' ? 'none' : 'block'">
+        Show Hourly Breakdown
+    </button>
+
+    <div style="display:none;margin-top:10px;background:#f9fafb;padding:10px;border-radius:10px;">
+        ${hourlyText}
     </div>
 
 </div>
 `;
-        });
-
-        document.getElementById("results").innerHTML = html;
-
-    }
-    catch(error){
-        console.log(error);
-        document.getElementById("results").innerHTML = "Error loading weather data";
-    }
-}
-
-</script>
-
-</body>
-</html>
+});
