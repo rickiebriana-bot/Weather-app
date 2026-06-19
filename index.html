@@ -130,6 +130,9 @@ async function run(){
     if(isNaN(startHour)) startHour = 7;
     if(isNaN(endHour)) endHour = 21;
 
+    const showWindow = !(isNaN(parseInt(document.getElementById("startHour").value)) ||
+                         isNaN(parseInt(document.getElementById("endHour").value)));
+
     const parts = locationInput.split(',').map(p => p.trim()).filter(Boolean);
     const cityQuery = parts[0];
     const regionPart = parts[1] || null;
@@ -202,11 +205,15 @@ async function run(){
 <div class="locationInfo">
 📍 Lat: ${lat.toFixed(4)} &nbsp;&nbsp; Lon: ${lon.toFixed(4)}
 </div>
+`;
 
+        if(showWindow){
+            html += `
 <div class="helper">
 Activity window: <b>${startHour}:00 → ${endHour}:00</b>
 </div>
 `;
+        }
 
         const days = [];
         let bestIndex = 0;
@@ -240,7 +247,6 @@ Activity window: <b>${startHour}:00 → ${endHour}:00</b>
                 emoji = "🔴";
             }
 
-            // build hourly breakdown + rain blocks
             let hourlyHtml = "";
             let rainBlocks = [];
             let rainStart = null;
