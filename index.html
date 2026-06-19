@@ -98,6 +98,7 @@ function getLabel(score){
     return "Poor conditions";
 }
 
+// detect consecutive rain probability spikes
 function detectRainEvents(values, threshold=40){
     let events = 0;
     let inEvent = false;
@@ -112,6 +113,31 @@ function detectRainEvents(values, threshold=40){
     }
 
     return events;
+}
+
+// comfort model (temp + wind)
+function comfortScore(temp, wind){
+
+    let score = 100;
+
+    // wind penalty
+    if(wind < 5) score -= 0;
+    else if(wind < 15) score -= 5;
+    else if(wind < 25) score -= 15;
+    else score -= 30;
+
+    // temperature penalty
+    if(temp >= 60 && temp <= 80){
+        score -= 0;
+    } else if((temp >= 50 && temp < 60) || (temp > 80 && temp <= 88)){
+        score -= 8;
+    } else if((temp >= 40 && temp < 50) || (temp > 88 && temp <= 95)){
+        score -= 20;
+    } else {
+        score -= 35;
+    }
+
+    return score;
 }
 
 async function run(){
@@ -129,6 +155,7 @@ async function run(){
 
     try{
 
+        // geocode
         const geo = await fetch(
             `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityQuery)}&count=1`
         );
@@ -142,14 +169,17 @@ async function run(){
 
         const { latitude, longitude, name, admin1 } = geoData.results[0];
 
+        // IMPORTANT: now pulling temp + wind too
         const weather = await fetch(
-`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=precipitation_probability&forecast_days=7&timezone=auto`
+`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=precipitation_probability,temperature_2m,wind_speed_10m&forecast_days=7&timezone=auto`
         );
 
         const data = await weather.json();
 
         const times = data.hourly.time;
         const precip = data.hourly.precipitation_probability;
+        const temp = data.hourly.temperature_2m;
+        const wind = data.hourly.wind_speed_10m;
 
         const days = {};
 
@@ -162,7 +192,12 @@ async function run(){
                 days[date] = [];
             }
 
-            days[date].push({ hour, value: precip[i] || 0 });
+            days[date].push({
+                hour,
+                precip: precip[i] || 0,
+                temp: temp[i] || 70,
+                wind: wind[i] || 5
+            });
         });
 
         const dayKeys = Object.keys(days).slice(0,7);
@@ -175,16 +210,26 @@ async function run(){
 
             const entries = days[date];
 
-            // only daytime hours 7–19
+            // daytime only
             const daytime = entries.filter(e => e.hour >= 7 && e.hour <= 19);
 
-            const values = daytime.map(e => e.value);
+            const precipVals = daytime.map(e => e.precip);
 
-            const avgRain = values.reduce((a,b)=>a+b,0) / (values.length || 1);
+            // rain events matter more than averages
+            const rainEvents = detectRainEvents(precipVals);
 
-            const rainEvents = detectRainEvents(values);
+            // average comfort from temp + wind
+            const comfortVals = daytime.map(e =>
+                comfortScore(e.temp, e.wind)
+            );
 
-            const score = 100 - (avgRain * 0.8 + rainEvents * 15);
+            const avgComfort =
+                comfortVals.reduce((a,b)=>a+b,0) / (comfortVals.length || 1);
+
+            // rain penalty (main driver)
+            const rainPenalty = rainEvents * 18;
+
+            const score = avgComfort - rainPenalty;
 
             const clamped = Math.max(0, Math.min(100, score));
 
@@ -196,8 +241,8 @@ async function run(){
             results.push({
                 date,
                 score: clamped,
-                avgRain,
-                rainEvents
+                rainEvents,
+                avgComfort
             });
         });
 
@@ -226,15 +271,11 @@ async function run(){
     <strong>${labelDate}</strong>
 
     <div class="small">
-        Avg daytime rain: ${d.avgRain.toFixed(1)}%
+        Rain disruptions: ${d.rainEvents}
     </div>
 
     <div class="score">
         Score: ${d.score.toFixed(0)} / 100
-    </div>
-
-    <div class="small">
-        Rain events: ${d.rainEvents}
     </div>
 
 </div>
