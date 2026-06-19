@@ -104,19 +104,22 @@ button{
 <script>
 
 function getIcon(score){
-    if(score >= 80) return "☀️";
-    if(score >= 60) return "⛅";
-    if(score >= 40) return "🌥";
+    if(score >= 90) return "☀️";
+    if(score >= 80) return "⛅";
+    if(score >= 70) return "🌤";
+    if(score >= 60) return "🌥";
     return "🌧";
 }
 
 function getLabel(score){
-    if(score >= 80) return "Great day";
-    if(score >= 60) return "Good day";
-    if(score >= 40) return "Mixed";
+    if(score >= 90) return "Great day";
+    if(score >= 80) return "Good day";
+    if(score >= 70) return "Alright";
+    if(score >= 60) return "Mixed";
     return "Poor conditions";
 }
 
+// detect rain “events”
 function detectRainEvents(values, threshold=40){
     let events = 0;
     let inEvent = false;
@@ -133,26 +136,22 @@ function detectRainEvents(values, threshold=40){
     return events;
 }
 
+// COMFORT MODEL (softened)
 function comfortScore(temp, wind){
 
-    let score = 100;
+    let score = 92; // not 100 — avoids harsh drops
 
-    // wind
-    if(wind < 5) score -= 0;
-    else if(wind < 15) score -= 5;
-    else if(wind < 25) score -= 15;
-    else score -= 30;
+    // wind penalty (soft)
+    if(wind < 10) score -= 0;
+    else if(wind < 20) score -= 3;
+    else if(wind < 30) score -= 8;
+    else score -= 15;
 
-    // temperature
-    if(temp >= 60 && temp <= 80){
-        score -= 0;
-    } else if((temp >= 50 && temp < 60) || (temp > 80 && temp <= 88)){
-        score -= 8;
-    } else if((temp >= 40 && temp < 50) || (temp > 88 && temp <= 95)){
-        score -= 20;
-    } else {
-        score -= 35;
-    }
+    // temperature penalty (smooth)
+    const ideal = 72;
+    const tempPenalty = Math.min(20, Math.abs(temp - ideal) * 0.8);
+
+    score -= tempPenalty;
 
     return score;
 }
@@ -241,7 +240,8 @@ async function run(){
             const avgComfort =
                 comfortVals.reduce((a,b)=>a+b,0) / (comfortVals.length || 1);
 
-            const rainPenalty = rainEvents * 18;
+            // softened rain penalty
+            const rainPenalty = (rainEvents * 8);
 
             const score = avgComfort - rainPenalty;
 
@@ -257,7 +257,7 @@ async function run(){
                 score: clamped,
                 rainEvents,
                 avgComfort,
-                entries
+                rainPenalty
             });
         });
 
@@ -296,10 +296,13 @@ async function run(){
     </button>
 
     <div class="details" id="${detailId}">
-        <div><b>Rain disruptions:</b> ${d.rainEvents}</div>
-        <div><b>Avg comfort score:</b> ${d.avgComfort.toFixed(1)} / 100</div>
-        <div><b>Penalty:</b> ${d.rainEvents * 18}</div>
-        <div><b>Final math:</b> comfort - rain penalty</div>
+
+        <div><b>Base comfort:</b> ${d.avgComfort.toFixed(1)}</div>
+
+        <div><b>Rain events:</b> ${d.rainEvents} (-${d.rainPenalty})</div>
+
+        <div><b>Final score:</b> comfort - rain penalty</div>
+
     </div>
 
 </div>
