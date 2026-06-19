@@ -40,7 +40,7 @@ button{
     box-shadow:0 2px 8px rgba(0,0,0,.08);
 }
 .score{
-    font-size:34px;
+    font-size:40px;
     font-weight:bold;
 }
 .best{
@@ -86,12 +86,10 @@ async function run(){
 
     document.getElementById("results").innerHTML = "Loading...";
 
-    // Split input like "Boston, MA" into city and optional state/country
     const parts = locationInput.split(',').map(p => p.trim()).filter(Boolean);
     const cityQuery = parts[0];
-    const regionPart = parts[1] || null; // could be "MA" or "Massachusetts" or "US"
+    const regionPart = parts[1] || null;
 
-    // US state abbreviations -> full name map (used when user types "MA")
     const US_STATES = {
       "AL":"Alabama","AK":"Alaska","AZ":"Arizona","AR":"Arkansas","CA":"California","CO":"Colorado","CT":"Connecticut",
       "DE":"Delaware","FL":"Florida","GA":"Georgia","HI":"Hawaii","ID":"Idaho","IL":"Illinois","IN":"Indiana","IA":"Iowa",
@@ -105,7 +103,6 @@ async function run(){
 
     try{
 
-        // Ask for more candidates so we can filter by state/country if needed
         const geo = await fetch(
             `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityQuery)}&count=10`
         );
@@ -117,7 +114,6 @@ async function run(){
             return;
         }
 
-        // If user provided a region (state or country), try to find the candidate that matches it
         let candidates = geoData.results;
 
         if(regionPart){
@@ -126,25 +122,18 @@ async function run(){
             const regionFullState = US_STATES[regionUpper] || null;
 
             candidates = candidates.filter(r => {
-                // r.admin1 is typically the state/province name (e.g., "Massachusetts")
                 if(r.admin1){
                     const admin1 = r.admin1.toLowerCase();
                     if(regionFullState && admin1 === regionFullState.toLowerCase()) return true;
                     if(admin1 === regionLower) return true;
                 }
-                // r.country and r.country_code may be available
                 if(r.country && r.country.toLowerCase() === regionLower) return true;
                 if(r.country_code && r.country_code.toUpperCase() === regionUpper) return true;
-
-                // no match
                 return false;
             });
         }
 
-        // Choose the filtered candidate if any, otherwise fall back to the top result
         const result = (candidates.length > 0 ? candidates[0] : geoData.results[0]);
-
-        console.log("Geocoding Result:", result);
 
         const lat = result.latitude;
         const lon = result.longitude;
@@ -161,8 +150,6 @@ async function run(){
 
         const weatherData = await weather.json();
 
-        console.log("Weather Data:", weatherData);
-
         const hourly = weatherData.hourly.precipitation_probability;
         const highs = weatherData.daily.temperature_2m_max;
         const lows = weatherData.daily.temperature_2m_min;
@@ -170,127 +157,106 @@ async function run(){
 
         let html = `
 <h2>${locationName}</h2>
-
 <div class="locationInfo">
-📍 Lat: ${lat.toFixed(4)}
-&nbsp;&nbsp;
-Lon: ${lon.toFixed(4)}
+📍 Lat: ${lat.toFixed(4)} &nbsp;&nbsp; Lon: ${lon.toFixed(4)}
 </div>
 `;
 
-        let bestScore = -1;
-        let bestDay = 0;
-
         const days = [];
+        let bestIndex = 0;
 
-        for(let day=0; day<7; day++){
+        for(let day = 0; day < 7; day++){
 
             let expectedRain = 0;
 
-            for(let h=0; h<24; h++){
-                const chance =
-                    hourly[(day * 24) + h] || 0;
+            // ONLY DAYTIME (7AM–9PM)
+            for(let h = 7; h <= 21; h++){
+                const chance = hourly[(day * 24) + h] || 0;
                 expectedRain += chance / 100;
             }
 
-            const expectedDry =
-                24 - expectedRain;
+            let rating = "";
+            let emoji = "";
 
-            const score =
-                Math.round((expectedDry / 24) * 100);
+            if(expectedRain <= 1.5){
+                rating = "Excellent Outdoor Day";
+                emoji = "🟢";
+            } else if(expectedRain <= 3){
+                rating = "Great Outdoor Day";
+                emoji = "🟢";
+            } else if(expectedRain <= 5){
+                rating = "Mixed Conditions";
+                emoji = "🟡";
+            } else if(expectedRain <= 7){
+                rating = "Outdoor Plans May Be Affected";
+                emoji = "🟠";
+            } else {
+                rating = "Poor Outdoor Day";
+                emoji = "🔴";
+            }
 
             days.push({
                 expectedRain,
-                expectedDry,
-                score
+                rating,
+                emoji
             });
 
-            if(score > bestScore){
-                bestScore = score;
-                bestDay = day;
+            if(expectedRain < days[bestIndex]?.expectedRain || day === 0){
+                bestIndex = day;
             }
-
         }
 
         const weekdayNames = [];
 
         for(let i = 0; i < 7; i++){
-
             const date = new Date();
-
             date.setDate(date.getDate() + i);
 
-            if(i === 0){
-                weekdayNames.push("Today");
-            }
-            else if(i === 1){
-                weekdayNames.push("Tomorrow");
-            }
-            else{
-                weekdayNames.push(
-                    date.toLocaleDateString(
-                        "en-US",
-                        { weekday: "long" }
-                    )
-                );
-            }
-
+            if(i === 0) weekdayNames.push("Today");
+            else if(i === 1) weekdayNames.push("Tomorrow");
+            else weekdayNames.push(date.toLocaleDateString("en-US",{weekday:"long"}));
         }
 
         days.forEach((d,index)=>{
 
             html += `
-<div class="card ${index===bestDay?'best':''}">
+<div class="card ${index === bestIndex ? 'best' : ''}">
 
-<div class="score">
-${d.score}% Dry
-</div>
+    <div class="score">${d.emoji}</div>
 
-<strong>${weekdayNames[index]}</strong>
+    <h3>${d.rating}</h3>
 
-<div class="temp">
-🌡️ High: ${Math.round(highs[index])}°
-&nbsp;&nbsp;
-❄️ Low: ${Math.round(lows[index])}°
-</div>
+    <strong>${weekdayNames[index]}</strong>
 
-<br>
+    <div class="temp">
+        🌧️ Expected Daytime Rain: <b>${d.expectedRain.toFixed(1)} hrs</b>
+    </div>
 
-☀️ Expected Dry Time:
-<b>${d.expectedDry.toFixed(1)} hrs</b>
+    <div class="temp">
+        🌤️ Usable Outdoor Time: <b>${(15 - d.expectedRain).toFixed(1)} hrs</b>
+    </div>
 
-<br>
-
-🌧️ Expected Rain Time:
-<b>${d.expectedRain.toFixed(1)} hrs</b>
-
-<br>
-
-💧 Model Rain Hours:
-<b>${precipHours[index].toFixed(1)} hrs</b>
-
-<div class="small">
-${index===bestDay ? "🏆 Best Outdoor Day" : ""}
-</div>
+    <div class="small">
+        ${
+            d.expectedRain <= 1.5
+                ? "☀️ Almost fully usable day"
+                : d.expectedRain <= 5
+                ? "🌤 Some interruptions possible"
+                : "🌧 Expect disruptions to plans"
+        }
+    </div>
 
 </div>
 `;
-
         });
 
-        document.getElementById("results").innerHTML =
-            html;
+        document.getElementById("results").innerHTML = html;
 
     }
     catch(error){
-
         console.log(error);
-
-        document.getElementById("results").innerHTML =
-            "Error loading weather data";
-
+        document.getElementById("results").innerHTML = "Error loading weather data";
     }
-
 }
 
 </script>
