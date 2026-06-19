@@ -17,13 +17,14 @@ h1{
 }
 .search{
     text-align:center;
-    margin-bottom:20px;
+    margin-bottom:10px;
 }
 input{
     padding:12px;
     width:260px;
     border-radius:10px;
     border:1px solid #ccc;
+    margin:4px;
 }
 button{
     padding:12px;
@@ -59,6 +60,10 @@ button{
     font-size:14px;
     margin-bottom:20px;
 }
+.helper{
+    font-size:12px;
+    color:#777;
+}
 </style>
 </head>
 
@@ -68,6 +73,15 @@ button{
 
 <div class="search">
     <input id="location" placeholder="City, State (e.g. Revere, MA)">
+    <br>
+
+    <input id="startHour" placeholder="Start hour (e.g. 9)">
+    <input id="endHour" placeholder="End hour (e.g. 13)">
+
+    <div class="helper">
+        Leave blank for default (7am–9pm)
+    </div>
+
     <button onclick="run()">Check</button>
 </div>
 
@@ -85,6 +99,13 @@ async function run(){
     }
 
     document.getElementById("results").innerHTML = "Loading...";
+
+    // activity window (NEW)
+    let startHour = parseInt(document.getElementById("startHour").value);
+    let endHour = parseInt(document.getElementById("endHour").value);
+
+    if(isNaN(startHour)) startHour = 7;
+    if(isNaN(endHour)) endHour = 21;
 
     const parts = locationInput.split(',').map(p => p.trim()).filter(Boolean);
     const cityQuery = parts[0];
@@ -153,12 +174,15 @@ async function run(){
         const hourly = weatherData.hourly.precipitation_probability;
         const highs = weatherData.daily.temperature_2m_max;
         const lows = weatherData.daily.temperature_2m_min;
-        const precipHours = weatherData.daily.precipitation_hours;
 
         let html = `
 <h2>${locationName}</h2>
 <div class="locationInfo">
 📍 Lat: ${lat.toFixed(4)} &nbsp;&nbsp; Lon: ${lon.toFixed(4)}
+</div>
+
+<div class="small">
+Activity window: <b>${startHour}:00 → ${endHour}:00</b>
 </div>
 `;
 
@@ -169,8 +193,7 @@ async function run(){
 
             let expectedRain = 0;
 
-            // ONLY DAYTIME (7AM–9PM)
-            for(let h = 7; h <= 21; h++){
+            for(let h = startHour; h <= endHour; h++){
                 const chance = hourly[(day * 24) + h] || 0;
                 expectedRain += chance / 100;
             }
@@ -179,19 +202,19 @@ async function run(){
             let emoji = "";
 
             if(expectedRain <= 1.5){
-                rating = "Excellent Outdoor Day";
+                rating = "Excellent for Plans";
                 emoji = "🟢";
             } else if(expectedRain <= 3){
-                rating = "Great Outdoor Day";
+                rating = "Good for Plans";
                 emoji = "🟢";
             } else if(expectedRain <= 5){
                 rating = "Mixed Conditions";
                 emoji = "🟡";
             } else if(expectedRain <= 7){
-                rating = "Outdoor Plans May Be Affected";
+                rating = "Risky for Plans";
                 emoji = "🟠";
             } else {
-                rating = "Poor Outdoor Day";
+                rating = "Poor for Plans";
                 emoji = "🔴";
             }
 
@@ -229,20 +252,16 @@ async function run(){
     <strong>${weekdayNames[index]}</strong>
 
     <div class="temp">
-        🌧️ Expected Daytime Rain: <b>${d.expectedRain.toFixed(1)} hrs</b>
-    </div>
-
-    <div class="temp">
-        🌤️ Usable Outdoor Time: <b>${(15 - d.expectedRain).toFixed(1)} hrs</b>
+        🌧️ Rain risk (your window): <b>${d.expectedRain.toFixed(1)} hrs equivalent</b>
     </div>
 
     <div class="small">
         ${
             d.expectedRain <= 1.5
-                ? "☀️ Almost fully usable day"
+                ? "☀️ Very safe for outdoor plans"
                 : d.expectedRain <= 5
                 ? "🌤 Some interruptions possible"
-                : "🌧 Expect disruptions to plans"
+                : "🌧 Weather may disrupt plans"
         }
     </div>
 
