@@ -44,7 +44,6 @@ button:hover {
     background: #005bb5;
 }
 
-/* Updated to CSS Grid for better desktop layout */
 #results {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -88,7 +87,6 @@ button:hover {
     margin-bottom: 10px;
 }
 
-/* New styles for activity breakdown */
 .activity-list {
     width: 100%;
     margin-top: 15px;
@@ -122,48 +120,50 @@ button:hover {
 <div id="results"></div>
 
 <script>
-// Press Enter to trigger search
 document.getElementById("location").addEventListener("keypress", function(event) {
     if (event.key === "Enter") {
         run();
     }
 });
 
-// The Brain: Configure what makes weather "good" for different things
+// 1. Static Activities (General Outdoors is removed from here)
 const activities = [
     {
-        name: "General Outdoors",
-        idealTemp: 72,
-        tempFlexibility: 20, // Very tolerant of heat/cold
-        maxRainProb: 40,     // Tolerant of slight chances of rain
-        maxWind: 25,         // Tolerant of breeze
-        needsSun: false
-    },
-    {
-        name: "Golf",
-        idealTemp: 70,
-        tempFlexibility: 15,
-        maxRainProb: 15,     // Low tolerance for rain
-        maxWind: 15,         // Wind ruins the shot
+        name: "Skiing",
+        minTemp: -10,
+        maxTemp: 38,
+        idealTemp: 25,
+        tempFlexibility: 10,
+        maxRainProb: 0,
+        maxWind: 25,
         needsSun: false
     },
     {
         name: "Beach Day",
+        minTemp: 72,
+        maxTemp: 105,
         idealTemp: 85,
-        tempFlexibility: 10,
+        tempFlexibility: 8,
         maxRainProb: 10,
         maxWind: 15,         
-        needsSun: true       // High penalty for clouds
-    },
-    {
-        name: "Skiing",
-        idealTemp: 25,
-        tempFlexibility: 20, 
-        maxRainProb: 5,      // Rain destroys snow
-        maxWind: 25,         
-        needsSun: false
+        needsSun: true
     }
 ];
+
+// 2. Dynamic Season Generator
+function getGeneralOutdoorsProfile(dateString) {
+    const month = new Date(dateString + "T12:00:00").getMonth();
+
+    if (month >= 5 && month <= 7) { // June, July, Aug
+        return { name: "General Outdoors", idealTemp: 76, tempFlexibility: 10, minTemp: 62, maxTemp: 94, maxRainProb: 30, maxWind: 22, needsSun: false };
+    } else if (month >= 8 && month <= 10) { // Sept, Oct, Nov
+        return { name: "General Outdoors", idealTemp: 62, tempFlexibility: 10, minTemp: 45, maxTemp: 76, maxRainProb: 15, maxWind: 20, needsSun: false };
+    } else if (month === 11 || month === 0 || month === 1) { // Dec, Jan, Feb
+        return { name: "General Outdoors", idealTemp: 42, tempFlexibility: 12, minTemp: 28, maxTemp: 58, maxRainProb: 10, maxWind: 18, needsSun: false };
+    } else { // Mar, Apr, May
+        return { name: "General Outdoors", idealTemp: 65, tempFlexibility: 10, minTemp: 50, maxTemp: 80, maxRainProb: 25, maxWind: 22, needsSun: false };
+    }
+}
 
 function getIcon(score) {
     if(score >= 90) return "☀️";
@@ -181,13 +181,14 @@ function getLabel(score) {
     return "Stay Inside";
 }
 
-// Universal scoring engine for a single hour
+// 3. Updated Universal Scoring Engine
 function calculateHourlyActivityScore(hourlyData, activity) {
+    if (activity.minTemp !== undefined && hourlyData.apparentTemp < activity.minTemp) return 0;
+    if (activity.maxTemp !== undefined && hourlyData.apparentTemp > activity.maxTemp) return 0;
     if (hourlyData.precip > activity.maxRainProb) return 0;
     if (hourlyData.wind > activity.maxWind) return 0;
 
     let score = 100;
-
     const tempDiff = Math.abs(hourlyData.apparentTemp - activity.idealTemp);
     if (tempDiff > activity.tempFlexibility) {
         score -= (tempDiff - activity.tempFlexibility) * 3;
@@ -226,7 +227,6 @@ async function run() {
 
         const { latitude, longitude, name, admin1 } = geoData.results[0];
 
-        // API now includes apparent_temperature, cloud_cover, and Imperial units
         const weather = await fetch(
             `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=precipitation_probability,apparent_temperature,wind_speed_10m,cloud_cover&forecast_days=7&timezone=auto&temperature_unit=fahrenheit&wind_speed_unit=mph`
         );
@@ -267,15 +267,18 @@ async function run() {
         let bestGeneralScore = -Infinity;
         const processedDays = [];
 
-        // Process data for each day
         dayKeys.forEach((date, idx) => {
             const entries = days[date];
             const daytime = entries.filter(e => e.hour >= 7 && e.hour <= 19);
             
+            // 4. Generate the seasonal profile for this specific day
+            const generalOutdoors = getGeneralOutdoorsProfile(date);
+            
+            // 5. Combine the dynamic profile with the static list for scoring
+            const allActivities = [generalOutdoors, ...activities];
             const dailyActivityScores = {};
 
-            // Calculate average daily score for each activity
-            activities.forEach(activity => {
+            allActivities.forEach(activity => {
                 let totalScore = 0;
                 daytime.forEach(hour => {
                     totalScore += calculateHourlyActivityScore(hour, activity);
@@ -293,30 +296,26 @@ async function run() {
             processedDays.push({ date, generalScore, dailyActivityScores });
         });
 
-        // Generate HTML for each day
         processedDays.forEach((d, i) => {
             const icon = getIcon(d.generalScore);
             const label = getLabel(d.generalScore);
             
-            // Safe date parsing by appending noon time
             const dateObj = new Date(d.date + "T12:00:00");
             const labelDate = i === 0 ? "Today" : 
                               i === 1 ? "Tomorrow" : 
                               dateObj.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
             let activitiesHTML = "";
+            // We loop over the original 'activities' array here so "General Outdoors" isn't printed in the sub-list
             activities.forEach(act => {
-                if(act.name !== "General Outdoors") {
-                    const score = d.dailyActivityScores[act.name].toFixed(0);
-                    // Color code sub-activities (red for fail, green for great)
-                    const color = score < 50 ? "#ef4444" : score > 80 ? "#22c55e" : "#444";
-                    activitiesHTML += `
-                        <div class="activity-item">
-                            <span>${act.name}</span>
-                            <strong style="color: ${color}">${score}/100</strong>
-                        </div>
-                    `;
-                }
+                const score = d.dailyActivityScores[act.name].toFixed(0);
+                const color = score < 50 ? "#ef4444" : score > 80 ? "#22c55e" : "#444";
+                activitiesHTML += `
+                    <div class="activity-item">
+                        <span>${act.name}</span>
+                        <strong style="color: ${color}">${score}/100</strong>
+                    </div>
+                `;
             });
 
             resultsHTML += `
