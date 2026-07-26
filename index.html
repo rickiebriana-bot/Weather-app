@@ -166,11 +166,13 @@ function toggleDetails(id) {
     el.style.display = el.style.display === "block" ? "none" : "block";
 }
 
-// 1. Static Activities (General Outdoors is removed from here)
+// 1. Static Activities (Time-boxed)
 const activities = [
     {
         name: "Skiing",
         months: [11, 0, 1, 2, 3], // Dec, Jan, Feb, Mar, Apr
+        startHour: 9,  // 9 AM
+        endHour: 15,   // 3 PM
         minTemp: -10,
         maxTemp: 38,
         idealTemp: 25,
@@ -182,6 +184,8 @@ const activities = [
     {
         name: "Beach Day",
         months: [4, 5, 6, 7, 8], // May, Jun, Jul, Aug, Sep
+        startHour: 11, // 11 AM
+        endHour: 15,   // 3 PM (Peak heat/sun)
         minTemp: 72,
         maxTemp: 105,
         idealTemp: 85,
@@ -192,7 +196,7 @@ const activities = [
     }
 ];
 
-// 2. Dynamic Season Generator
+// 2. Dynamic Season Generator (Rules only, time is handled dynamically now)
 function getGeneralOutdoorsProfile(dateString) {
     const month = new Date(dateString + "T12:00:00").getMonth();
 
@@ -243,6 +247,14 @@ function calculateHourlyActivityScore(hourlyData, activity) {
     return Math.max(0, score); 
 }
 
+// Helper to format 24h to 12h time
+function formatHour(h) {
+    if (h === 0) return "12 AM";
+    if (h === 12) return "12 PM";
+    if (h > 12) return (h - 12) + " PM";
+    return h + " AM";
+}
+
 async function run() {
     const locationInput = document.getElementById("location").value.trim();
     const resultsContainer = document.getElementById("results");
@@ -269,7 +281,7 @@ async function run() {
 
         const { latitude, longitude, name, admin1 } = geoData.results[0];
 
-        // Fetch API now includes temperature_2m for actual temp stats
+        // Fetch API includes temperature_2m for actual temp stats
         const weather = await fetch(
             `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=precipitation_probability,temperature_2m,apparent_temperature,wind_speed_10m,cloud_cover&forecast_days=7&timezone=auto&temperature_unit=fahrenheit&wind_speed_unit=mph`
         );
@@ -309,56 +321,83 @@ async function run() {
         `;
 
         let bestIndex = 0;
-        let bestGeneralScore = -Infinity;
+        let overallBestGeneralScore = -Infinity;
         const processedDays = [];
 
         dayKeys.forEach((date, idx) => {
             const entries = days[date];
+            // Look at standard daytime hours for the general scan
             const daytime = entries.filter(e => e.hour >= 7 && e.hour <= 19);
             
-            // Calculate stats for the dropdown panel
-            let avgActual = 0, avgFeels = 0, maxRain = 0, maxWind = 0, avgClouds = 0;
-            daytime.forEach(e => {
-                avgActual += e.actualTemp;
-                avgFeels += e.apparentTemp;
-                maxRain = Math.max(maxRain, e.precip);
-                maxWind = Math.max(maxWind, e.wind);
-                avgClouds += e.clouds;
-            });
-            
-            const count = daytime.length || 1;
-            const stats = {
-                avgActual: avgActual / count,
-                avgFeels: avgFeels / count,
-                maxRain: maxRain, 
-                maxWind: maxWind,
-                avgClouds: avgClouds / count
-            };
-
-            // 4. Generate the seasonal profile for this specific day
             const generalOutdoors = getGeneralOutdoorsProfile(date);
             
-            // 5. Combine the dynamic profile with the static list for scoring
-            const allActivities = [generalOutdoors, ...activities];
-            const dailyActivityScores = {};
+            // --- THE "BEST 4 HOURS" METHOD ---
+            let dailyBestGeneralScore = -1;
+            let bestWindowStats = null;
+            let bestWindowLabel = "";
 
-            allActivities.forEach(activity => {
+            // Scan through the day in 4-hour chunks
+            for(let i = 0; i <= daytime.length - 4; i++) {
+                const windowHours = daytime.slice(i, i + 4);
+                let windowScore = 0;
+                let wAvgActual = 0, wAvgFeels = 0, wMaxRain = 0, wMaxWind = 0, wAvgClouds = 0;
+
+                windowHours.forEach(h => {
+                    windowScore += calculateHourlyActivityScore(h, generalOutdoors);
+                    wAvgActual += h.actualTemp;
+                    wAvgFeels += h.apparentTemp;
+                    wMaxRain = Math.max(wMaxRain, h.precip);
+                    wMaxWind = Math.max(wMaxWind, h.wind);
+                    wAvgClouds += h.clouds;
+                });
+
+                const avgScore = windowScore / 4;
+
+                // If this 4-hour chunk is better than the previous ones, save it!
+                if(avgScore > dailyBestGeneralScore) {
+                    dailyBestGeneralScore = avgScore;
+                    bestWindowStats = {
+                        avgActual: wAvgActual / 4,
+                        avgFeels: wAvgFeels / 4,
+                        maxRain: wMaxRain, 
+                        maxWind: wMaxWind,
+                        avgClouds: wAvgClouds / 4
+                    };
+                    const startH = windowHours[0].hour;
+                    const endH = windowHours[3].hour;
+                    bestWindowLabel = `${formatHour(startH)} - ${formatHour(endH + 1)}`;
+                }
+            }
+
+            // Fallback just in case
+            if (!bestWindowStats) bestWindowStats = {avgActual:0, avgFeels:0, maxRain:0, maxWind:0, avgClouds:0};
+
+            // Calculate Specific Activities using their exact configured hours
+            const dailyActivityScores = {};
+            activities.forEach(activity => {
                 let totalScore = 0;
-                daytime.forEach(hour => {
+                const activeHours = entries.filter(e => e.hour >= activity.startHour && e.hour <= activity.endHour);
+                
+                activeHours.forEach(hour => {
                     totalScore += calculateHourlyActivityScore(hour, activity);
                 });
-                dailyActivityScores[activity.name] = totalScore / (daytime.length || 1);
+                
+                dailyActivityScores[activity.name] = totalScore / (activeHours.length || 1);
             });
 
-            const generalScore = dailyActivityScores["General Outdoors"];
-            
-            if(generalScore > bestGeneralScore) {
-                bestGeneralScore = generalScore;
+            // Keep track of the absolute best day of the week
+            if(dailyBestGeneralScore > overallBestGeneralScore) {
+                overallBestGeneralScore = dailyBestGeneralScore;
                 bestIndex = idx;
             }
 
-            // Push stats object into the array
-            processedDays.push({ date, generalScore, dailyActivityScores, stats });
+            processedDays.push({ 
+                date, 
+                generalScore: dailyBestGeneralScore, 
+                bestWindowLabel,
+                dailyActivityScores, 
+                stats: bestWindowStats 
+            });
         });
 
         processedDays.forEach((d, i) => {
@@ -371,13 +410,11 @@ async function run() {
                               dateObj.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
             
             const detailId = "detail_" + i;
-
             let activitiesHTML = "";
 
             activities.forEach(act => {
-                const month = dateObj.getMonth(); // 0 = Jan, 6 = Jul, 11 = Dec
+                const month = dateObj.getMonth();
 
-                // Skip displaying this activity if we are outside its active months
                 if (act.months && !act.months.includes(month)) {
                     return;
                 }
@@ -412,6 +449,7 @@ async function run() {
                 </button>
 
                 <div class="details" id="${detailId}">
+                    <div style="color:#007aff; margin-bottom:8px;"><b>Best Window:</b> ${d.bestWindowLabel}</div>
                     <div><b>Avg Actual Temp:</b> ${d.stats.avgActual.toFixed(1)}°F</div>
                     <div><b>Avg Feels Like:</b> ${d.stats.avgFeels.toFixed(1)}°F</div>
                     <div><b>Max Rain Chance:</b> ${d.stats.maxRain}%</div>
