@@ -130,6 +130,7 @@ document.getElementById("location").addEventListener("keypress", function(event)
 const activities = [
     {
         name: "Skiing",
+        months: [11, 0, 1, 2, 3], // Dec, Jan, Feb, Mar, Apr
         minTemp: -10,
         maxTemp: 38,
         idealTemp: 25,
@@ -140,6 +141,7 @@ const activities = [
     },
     {
         name: "Beach Day",
+        months: [4, 5, 6, 7, 8], // May, Jun, Jul, Aug, Sep
         minTemp: 72,
         maxTemp: 105,
         idealTemp: 85,
@@ -306,18 +308,25 @@ async function run() {
                               dateObj.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
             let activitiesHTML = "";
-            // We loop over the original 'activities' array here so "General Outdoors" isn't printed in the sub-list
-            activities.forEach(act => {
-                const score = d.dailyActivityScores[act.name].toFixed(0);
-                const color = score < 50 ? "#ef4444" : score > 80 ? "#22c55e" : "#444";
-                activitiesHTML += `
-                    <div class="activity-item">
-                        <span>${act.name}</span>
-                        <strong style="color: ${color}">${score}/100</strong>
-                    </div>
-                `;
-            });
 
+activities.forEach(act => {
+    const month = dateObj.getMonth(); // 0 = Jan, 6 = Jul, 11 = Dec
+
+    // Skip displaying this activity if we are outside its active months
+    if (act.months && !act.months.includes(month)) {
+        return;
+    }
+
+    const score = d.dailyActivityScores[act.name].toFixed(0);
+    const color = score < 50 ? "#ef4444" : score > 80 ? "#22c55e" : "#444";
+    
+    activitiesHTML += `
+        <div class="activity-item">
+            <span>${act.name}</span>
+            <strong style="color: ${color}">${score}/100</strong>
+        </div>
+    `;
+});
             resultsHTML += `
             <div class="card ${i === bestIndex ? "best" : ""}">
                 <h3>${labelDate}</h3>
