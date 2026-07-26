@@ -105,6 +105,41 @@ button:hover {
 .activity-item strong {
     color: #111;
 }
+
+/* Debug Dropdown Styles */
+.detailsBtn {
+    margin-top: 15px;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 8px;
+    background: #eee;
+    color: #333;
+    cursor: pointer;
+    font-size: 13px;
+    width: 100%;
+    transition: background 0.2s;
+}
+
+.detailsBtn:hover {
+    background: #e5e7eb;
+}
+
+.details {
+    display: none;
+    margin-top: 10px;
+    padding: 12px;
+    background: #f9fafb;
+    border-radius: 10px;
+    font-size: 13px;
+    color: #444;
+    text-align: left;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.details div {
+    margin-bottom: 4px;
+}
 </style>
 </head>
 
@@ -125,6 +160,11 @@ document.getElementById("location").addEventListener("keypress", function(event)
         run();
     }
 });
+
+function toggleDetails(id) {
+    const el = document.getElementById(id);
+    el.style.display = el.style.display === "block" ? "none" : "block";
+}
 
 // 1. Static Activities (General Outdoors is removed from here)
 const activities = [
@@ -229,13 +269,15 @@ async function run() {
 
         const { latitude, longitude, name, admin1 } = geoData.results[0];
 
+        // Fetch API now includes temperature_2m for actual temp stats
         const weather = await fetch(
-            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=precipitation_probability,apparent_temperature,wind_speed_10m,cloud_cover&forecast_days=7&timezone=auto&temperature_unit=fahrenheit&wind_speed_unit=mph`
+            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=precipitation_probability,temperature_2m,apparent_temperature,wind_speed_10m,cloud_cover&forecast_days=7&timezone=auto&temperature_unit=fahrenheit&wind_speed_unit=mph`
         );
         const data = await weather.json();
 
         const times = data.hourly.time;
         const precip = data.hourly.precipitation_probability;
+        const actualTemp = data.hourly.temperature_2m;
         const apparentTemp = data.hourly.apparent_temperature;
         const wind = data.hourly.wind_speed_10m;
         const clouds = data.hourly.cloud_cover;
@@ -251,6 +293,7 @@ async function run() {
             days[date].push({
                 hour,
                 precip: precip[i] || 0,
+                actualTemp: actualTemp[i] || 70,
                 apparentTemp: apparentTemp[i] || 70,
                 wind: wind[i] || 0,
                 clouds: clouds[i] || 0
@@ -273,6 +316,25 @@ async function run() {
             const entries = days[date];
             const daytime = entries.filter(e => e.hour >= 7 && e.hour <= 19);
             
+            // Calculate stats for the dropdown panel
+            let avgActual = 0, avgFeels = 0, maxRain = 0, maxWind = 0, avgClouds = 0;
+            daytime.forEach(e => {
+                avgActual += e.actualTemp;
+                avgFeels += e.apparentTemp;
+                maxRain = Math.max(maxRain, e.precip);
+                maxWind = Math.max(maxWind, e.wind);
+                avgClouds += e.clouds;
+            });
+            
+            const count = daytime.length || 1;
+            const stats = {
+                avgActual: avgActual / count,
+                avgFeels: avgFeels / count,
+                maxRain: maxRain, 
+                maxWind: maxWind,
+                avgClouds: avgClouds / count
+            };
+
             // 4. Generate the seasonal profile for this specific day
             const generalOutdoors = getGeneralOutdoorsProfile(date);
             
@@ -295,7 +357,8 @@ async function run() {
                 bestIndex = idx;
             }
 
-            processedDays.push({ date, generalScore, dailyActivityScores });
+            // Push stats object into the array
+            processedDays.push({ date, generalScore, dailyActivityScores, stats });
         });
 
         processedDays.forEach((d, i) => {
@@ -306,27 +369,30 @@ async function run() {
             const labelDate = i === 0 ? "Today" : 
                               i === 1 ? "Tomorrow" : 
                               dateObj.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+            
+            const detailId = "detail_" + i;
 
             let activitiesHTML = "";
 
-activities.forEach(act => {
-    const month = dateObj.getMonth(); // 0 = Jan, 6 = Jul, 11 = Dec
+            activities.forEach(act => {
+                const month = dateObj.getMonth(); // 0 = Jan, 6 = Jul, 11 = Dec
 
-    // Skip displaying this activity if we are outside its active months
-    if (act.months && !act.months.includes(month)) {
-        return;
-    }
+                // Skip displaying this activity if we are outside its active months
+                if (act.months && !act.months.includes(month)) {
+                    return;
+                }
 
-    const score = d.dailyActivityScores[act.name].toFixed(0);
-    const color = score < 50 ? "#ef4444" : score > 80 ? "#22c55e" : "#444";
-    
-    activitiesHTML += `
-        <div class="activity-item">
-            <span>${act.name}</span>
-            <strong style="color: ${color}">${score}/100</strong>
-        </div>
-    `;
-});
+                const score = d.dailyActivityScores[act.name].toFixed(0);
+                const color = score < 50 ? "#ef4444" : score > 80 ? "#22c55e" : "#444";
+                
+                activitiesHTML += `
+                    <div class="activity-item">
+                        <span>${act.name}</span>
+                        <strong style="color: ${color}">${score}/100</strong>
+                    </div>
+                `;
+            });
+            
             resultsHTML += `
             <div class="card ${i === bestIndex ? "best" : ""}">
                 <h3>${labelDate}</h3>
@@ -339,6 +405,18 @@ activities.forEach(act => {
 
                 <div class="activity-list">
                     ${activitiesHTML}
+                </div>
+
+                <button class="detailsBtn" onclick="toggleDetails('${detailId}')">
+                    Why this score?
+                </button>
+
+                <div class="details" id="${detailId}">
+                    <div><b>Avg Actual Temp:</b> ${d.stats.avgActual.toFixed(1)}°F</div>
+                    <div><b>Avg Feels Like:</b> ${d.stats.avgFeels.toFixed(1)}°F</div>
+                    <div><b>Max Rain Chance:</b> ${d.stats.maxRain}%</div>
+                    <div><b>Max Wind:</b> ${d.stats.maxWind.toFixed(1)} mph</div>
+                    <div><b>Avg Cloud Cover:</b> ${d.stats.avgClouds.toFixed(0)}%</div>
                 </div>
             </div>
             `;
