@@ -3,470 +3,521 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Weather Reality</title>
+<title>Weather Reality Pro</title>
 
 <style>
+:root {
+    --bg-base: #09101d;
+    --bg-panel: #111a2c;
+    --bg-panel-hover: #162138;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --text-dark: #64748b;
+    --accent: #38bdf8;
+    --bar-bg: #1e293b;
+    
+    --green: #22c55e;
+    --green-light: #4ade80;
+    --green-bg: rgba(34, 197, 94, 0.15);
+    
+    --yellow: #eab308;
+    --yellow-light: #fde047;
+    --yellow-bg: rgba(234, 179, 8, 0.15);
+    
+    --orange: #f97316;
+    --orange-light: #fdba74;
+    --orange-bg: rgba(249, 115, 22, 0.15);
+    
+    --red: #ef4444;
+    --red-light: #fca5a5;
+    --red-bg: rgba(239, 68, 68, 0.15);
+}
+
 body {
-    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-    background: #f3f4f6;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, sans-serif;
+    background: var(--bg-base);
+    color: var(--text-main);
     margin: 0;
     padding: 20px;
+    -webkit-font-smoothing: antialiased;
 }
 
-h1 {
-    text-align: center;
-}
-
-.search {
-    text-align: center;
-    margin-bottom: 20px;
+/* Search Area */
+.search-container {
+    max-width: 800px;
+    margin: 0 auto 30px auto;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
 }
 
 input {
-    padding: 12px;
-    width: 260px;
-    border-radius: 10px;
-    border: 1px solid #ccc;
+    flex-grow: 1;
+    min-width: 200px;
+    background: var(--bg-panel);
+    border: 1px solid var(--bar-bg);
+    padding: 14px 18px;
+    border-radius: 12px;
+    color: white;
+    font-size: 15px;
+    outline: none;
 }
+
+input:focus { border-color: var(--accent); }
 
 button {
-    padding: 12px;
+    background: var(--accent);
+    color: #000;
     border: none;
-    border-radius: 10px;
-    background: #007aff;
-    color: white;
-    margin-left: 6px;
+    padding: 14px 20px;
+    border-radius: 12px;
+    font-weight: 600;
     cursor: pointer;
-    transition: background 0.2s;
+    font-size: 14px;
 }
 
-button:hover {
-    background: #005bb5;
+button:hover { background: #7dd3fc; }
+
+.fav-btn {
+    background: var(--bg-panel);
+    color: var(--text-muted);
+    border: 1px solid var(--bar-bg);
 }
 
-#results {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 16px;
-    margin-top: 20px;
-    transition: opacity 0.3s;
+.fav-btn:hover { background: var(--bg-panel-hover); color: white; }
+
+/* Main App Wrapper */
+#app-wrapper {
+    max-width: 800px;
+    margin: 0 auto;
+    display: none;
 }
 
-.card {
-    background: white;
-    border-radius: 14px;
-    padding: 16px;
-    box-shadow: 0 2px 8px rgba(0,0,0,.08);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
+/* Top Dashboard (Current) */
+.current-dash {
+    background: transparent;
+    padding: 10px 0 40px 0;
 }
 
-.best {
-    border: 3px solid #22c55e;
+.loc-name {
+    font-size: 13px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+    font-weight: 600;
 }
 
-.icon {
-    font-size: 42px;
-    margin-bottom: 10px;
-}
-
-.score {
-    font-size: 24px;
-    font-weight: bold;
-    margin-top: 6px;
-    color: #111;
-}
-
-.locationInfo {
-    grid-column: 1 / -1; 
-    text-align: center;
-    color: #666;
-    font-size: 16px;
-    margin-bottom: 10px;
-}
-
-.activity-list {
-    width: 100%;
-    margin-top: 15px;
-    border-top: 1px solid #eee;
-    padding-top: 10px;
-}
-
-.activity-item {
+.flex-between {
     display: flex;
     justify-content: space-between;
-    font-size: 14px;
-    margin-bottom: 6px;
-    color: #444;
+    align-items: flex-end;
 }
 
-.activity-item strong {
-    color: #111;
+.temp-huge {
+    font-size: 96px;
+    font-weight: 200;
+    line-height: 1;
+    margin: 0;
 }
 
-/* Debug Dropdown Styles */
-.detailsBtn {
-    margin-top: 15px;
-    padding: 8px 10px;
-    border: none;
-    border-radius: 8px;
-    background: #eee;
-    color: #333;
-    cursor: pointer;
-    font-size: 13px;
-    width: 100%;
-    transition: background 0.2s;
-}
-
-.detailsBtn:hover {
-    background: #e5e7eb;
-}
-
-.details {
-    display: none;
+.desc-text {
+    font-size: 18px;
+    color: var(--text-muted);
     margin-top: 10px;
-    padding: 12px;
-    background: #f9fafb;
-    border-radius: 10px;
-    font-size: 13px;
-    color: #444;
-    text-align: left;
-    width: 100%;
-    box-sizing: border-box;
 }
 
-.details div {
-    margin-bottom: 4px;
+/* Top Gauge */
+.gauge-box {
+    text-align: right;
+    padding-bottom: 10px;
+}
+.gauge-label {
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: var(--text-dark);
+    text-transform: uppercase;
+    margin-bottom: 2px;
+    font-weight: 600;
+}
+.gauge-val {
+    font-size: 26px;
+    font-weight: 600;
+}
+.gauge-date {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* Metrics Row */
+.metrics-row {
+    display: flex;
+    gap: 20px;
+    margin-top: 25px;
+    font-size: 14px;
+    color: var(--text-muted);
+    font-weight: 500;
+    flex-wrap: wrap;
+}
+.metrics-row span {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* 10-Day Forecast List */
+.forecast-section {
+    margin-top: 20px;
+}
+.section-title {
+    font-size: 12px;
+    letter-spacing: 1.5px;
+    color: var(--text-dark);
+    font-weight: 600;
+    margin-bottom: 15px;
+}
+
+.f-row {
+    display: grid;
+    grid-template-columns: 80px 40px 1fr 40px 120px 40px 50px 90px;
+    align-items: center;
+    background: var(--bg-panel);
+    margin-bottom: 8px;
+    padding: 16px 20px;
+    border-radius: 16px;
+    transition: transform 0.2s, background 0.2s;
+}
+
+.f-row:hover {
+    background: var(--bg-panel-hover);
+    transform: scale(1.01);
+}
+
+.f-date {
+    font-size: 15px;
+    font-weight: 500;
+}
+.f-date span {
+    display: block;
+    font-size: 12px;
+    color: var(--text-dark);
+    margin-top: 2px;
+}
+
+.f-icon { font-size: 20px; text-align: center; }
+.f-desc { font-size: 14px; color: var(--text-muted); padding-left: 10px; }
+.f-temp { font-size: 15px; font-weight: 500; text-align: center; }
+.f-temp.muted { color: var(--text-muted); }
+
+/* Dynamic Temp Bar */
+.bar-wrapper {
+    height: 4px;
+    background: var(--bar-bg);
+    border-radius: 2px;
+    margin: 0 10px;
+    position: relative;
+    overflow: hidden;
+}
+.bar-fill {
+    position: absolute;
+    height: 100%;
+    border-radius: 2px;
+    background: linear-gradient(90deg, #3b82f6, #f97316);
+}
+
+.f-precip {
+    font-size: 13px;
+    color: var(--accent);
+    text-align: right;
+    padding-right: 15px;
+}
+
+/* Score Pills */
+.score-pill {
+    padding: 6px 0;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+    border: 1px solid transparent;
+}
+.pill-green { border-color: var(--green); color: var(--green-light); background: var(--green-bg); }
+.pill-yellow { border-color: var(--yellow); color: var(--yellow-light); background: var(--yellow-bg); }
+.pill-orange { border-color: var(--orange); color: var(--orange-light); background: var(--orange-bg); }
+.pill-red { border-color: var(--red); color: var(--red-light); background: var(--red-bg); }
+
+/* Mobile fallback */
+@media (max-width: 650px) {
+    .f-row { grid-template-columns: 70px 30px 1fr 80px; }
+    .f-temp, .bar-wrapper, .f-precip { display: none; }
+    .temp-huge { font-size: 72px; }
 }
 </style>
 </head>
 
 <body>
 
-<h1>☀️ Weather Reality</h1>
-
-<div class="search">
-    <input id="location" placeholder="City, State (e.g. Revere, MA)">
-    <button onclick="run()">Check</button>
+<div class="search-container">
+    <input id="location" placeholder="Search city (e.g. San Francisco, CA)">
+    <button onclick="run()">Search</button>
+    <button class="fav-btn" onclick="searchFavorite('Revere, MA')">📍 Revere, MA</button>
 </div>
 
-<div id="results"></div>
+<div id="results" style="text-align:center; color: #64748b; margin-top: 40px;">Enter a location to view the 10-Day Reality Forecast.</div>
+
+<div id="app-wrapper">
+    <div class="current-dash">
+        <div class="loc-name" id="ui-loc">--</div>
+        
+        <div class="flex-between">
+            <h1 class="temp-huge" id="ui-temp">--°</h1>
+            
+            <div class="gauge-box">
+                <div class="gauge-label">Outdoor Score</div>
+                <div class="gauge-val" id="ui-top-score">--</div>
+                <div class="gauge-date" id="ui-top-date">--</div>
+            </div>
+        </div>
+        
+        <div class="desc-text" id="ui-desc">--</div>
+        
+        <div class="metrics-row">
+            <span id="ui-wind">💨 --</span>
+            <span id="ui-hum">💧 --</span>
+            <span id="ui-rain">☔ --</span>
+            <span id="ui-uv">☀️ --</span>
+            <span id="ui-hilo">⬆ -- / ⬇ --</span>
+        </div>
+    </div>
+    
+    <div class="forecast-section">
+        <div class="section-title">10-DAY FORECAST</div>
+        <div id="forecast-list"></div>
+    </div>
+</div>
 
 <script>
 document.getElementById("location").addEventListener("keypress", function(event) {
-    if (event.key === "Enter") {
-        run();
-    }
+    if (event.key === "Enter") run();
 });
 
-function toggleDetails(id) {
-    const el = document.getElementById(id);
-    el.style.display = el.style.display === "block" ? "none" : "block";
+function searchFavorite(loc) {
+    document.getElementById("location").value = loc;
+    run();
 }
 
-// 1. Static Activities (Time-boxed)
-const activities = [
-    {
-        name: "Skiing",
-        months: [11, 0, 1, 2, 3], // Dec, Jan, Feb, Mar, Apr
-        startHour: 9,  // 9 AM
-        endHour: 15,   // 3 PM
-        minTemp: -10,
-        maxTemp: 38,
-        idealTemp: 25,
-        tempFlexibility: 10,
-        maxRainProb: 0,
-        maxWind: 25,
-        needsSun: false
+// Map WMO codes to clean UI text/icons
+const wmoMap = {
+    0: { txt: "Sunny", icon: "☀️" }, 1: { txt: "Mainly Sunny", icon: "🌤" },
+    2: { txt: "Partly Cloudy", icon: "⛅" }, 3: { txt: "Cloudy", icon: "☁️" },
+    45: { txt: "Foggy", icon: "🌫" }, 48: { txt: "Rime Fog", icon: "🌫" },
+    51: { txt: "Light Drizzle", icon: "🌧" }, 53: { txt: "Drizzle", icon: "🌧" },
+    55: { txt: "Heavy Drizzle", icon: "🌧" }, 61: { txt: "Light Rain", icon: "🌦" },
+    63: { txt: "Rain", icon: "🌧" }, 65: { txt: "Heavy Rain", icon: "🌧" },
+    71: { txt: "Light Snow", icon: "🌨" }, 73: { txt: "Snow", icon: "❄️" },
+    75: { txt: "Heavy Snow", icon: "❄️" }, 95: { txt: "Thunderstorms", icon: "⛈" }
+};
+function getWeatherMeta(code) { return wmoMap[code] || { txt: "Mixed", icon: "🌥" }; }
+
+// THE PERCEPTION ENGINE PIPELINE
+const Pipeline = {
+    // Stage 1: Convert raw API data to human perception (0-100)
+    perceiveThermal: (feelsLike) => {
+        const diff = Math.abs(feelsLike - 75); // 75F is ideal
+        return Math.max(0, 100 - (diff * 2.5));
     },
-    {
-        name: "Beach Day",
-        months: [4, 5, 6, 7, 8], // May, Jun, Jul, Aug, Sep
-        startHour: 11, // 11 AM
-        endHour: 15,   // 3 PM (Peak heat/sun)
-        minTemp: 72,
-        maxTemp: 105,
-        idealTemp: 85,
-        tempFlexibility: 8,
-        maxRainProb: 10,
-        maxWind: 15,         
-        needsSun: true
+    perceiveMoisture: (precipProb) => {
+        return Math.max(0, 100 - (precipProb * 1.5)); // Heavy penalty for rain chance
+    },
+    perceiveWind: (windMph) => {
+        return windMph < 5 ? 100 : Math.max(0, 100 - ((windMph - 5) * 3));
+    },
+    perceiveSky: (clouds) => {
+        return Math.max(0, 100 - (clouds * 0.3)); // Light penalty for gloom
+    },
+    
+    // Stage 2 & 3: Dimension Combining -> Base Comfort Score
+    getBaseComfort: function(hourData) {
+        const t = this.perceiveThermal(hourData.apparentTemp);
+        const m = this.perceiveMoisture(hourData.precip);
+        const w = this.perceiveWind(hourData.wind);
+        const s = this.perceiveSky(hourData.clouds);
+        
+        // Weighting matrix
+        return (t * 0.45) + (m * 0.35) + (w * 0.10) + (s * 0.10);
+    },
+    
+    // Stage 4 & 5: Contextual Overrides -> Final Rating
+    applyContext: function(baseScore, hourData, month) {
+        let final = baseScore;
+        
+        // Seasonal Context Generation
+        let profile = {};
+        if (month >= 5 && month <= 7) profile = { minTemp: 62, maxTemp: 94, maxRain: 30, maxWind: 22 };
+        else if (month >= 8 && month <= 10) profile = { minTemp: 45, maxTemp: 76, maxRain: 15, maxWind: 20 };
+        else if (month === 11 || month <= 1) profile = { minTemp: 28, maxTemp: 58, maxRain: 10, maxWind: 18 };
+        else profile = { minTemp: 50, maxTemp: 80, maxRain: 25, maxWind: 22 };
+
+        // Hard Dealbreakers
+        if (hourData.precip > profile.maxRain) return 0;
+        if (hourData.wind > profile.maxWind) return 0;
+        if (hourData.apparentTemp < profile.minTemp || hourData.apparentTemp > profile.maxTemp) return 0;
+        
+        return Math.max(0, Math.min(100, final));
     }
-];
+};
 
-// 2. Dynamic Season Generator (Rules only, time is handled dynamically now)
-function getGeneralOutdoorsProfile(dateString) {
-    const month = new Date(dateString + "T12:00:00").getMonth();
-
-    if (month >= 5 && month <= 7) { // June, July, Aug
-        return { name: "General Outdoors", idealTemp: 76, tempFlexibility: 10, minTemp: 62, maxTemp: 94, maxRainProb: 30, maxWind: 22, needsSun: false };
-    } else if (month >= 8 && month <= 10) { // Sept, Oct, Nov
-        return { name: "General Outdoors", idealTemp: 62, tempFlexibility: 10, minTemp: 45, maxTemp: 76, maxRainProb: 15, maxWind: 20, needsSun: false };
-    } else if (month === 11 || month === 0 || month === 1) { // Dec, Jan, Feb
-        return { name: "General Outdoors", idealTemp: 42, tempFlexibility: 12, minTemp: 28, maxTemp: 58, maxRainProb: 10, maxWind: 18, needsSun: false };
-    } else { // Mar, Apr, May
-        return { name: "General Outdoors", idealTemp: 65, tempFlexibility: 10, minTemp: 50, maxTemp: 80, maxRainProb: 25, maxWind: 22, needsSun: false };
-    }
-}
-
-function getIcon(score) {
-    if(score >= 90) return "☀️";
-    if(score >= 80) return "⛅";
-    if(score >= 70) return "🌤";
-    if(score >= 60) return "🌥";
-    return "🌧";
-}
-
-function getLabel(score) {
-    if(score >= 90) return "Prime Conditions";
-    if(score >= 80) return "Great Day";
-    if(score >= 70) return "Decent";
-    if(score >= 60) return "Mixed";
-    return "Stay Inside";
-}
-
-// 3. Updated Universal Scoring Engine
-function calculateHourlyActivityScore(hourlyData, activity) {
-    if (activity.minTemp !== undefined && hourlyData.apparentTemp < activity.minTemp) return 0;
-    if (activity.maxTemp !== undefined && hourlyData.apparentTemp > activity.maxTemp) return 0;
-    if (hourlyData.precip > activity.maxRainProb) return 0;
-    if (hourlyData.wind > activity.maxWind) return 0;
-
-    let score = 100;
-    const tempDiff = Math.abs(hourlyData.apparentTemp - activity.idealTemp);
-    if (tempDiff > activity.tempFlexibility) {
-        score -= (tempDiff - activity.tempFlexibility) * 3;
-    }
-
-    if (activity.needsSun) {
-        score -= (hourlyData.clouds / 2);
-    }
-
-    return Math.max(0, score); 
-}
-
-// Helper to format 24h to 12h time
-function formatHour(h) {
-    if (h === 0) return "12 AM";
-    if (h === 12) return "12 PM";
-    if (h > 12) return (h - 12) + " PM";
-    return h + " AM";
+// UI Color mapping
+function getScoreStyling(score) {
+    if(score >= 80) return { label: "Excellent", cls: "pill-green", color: "var(--green-light)" };
+    if(score >= 60) return { label: "Good", cls: "pill-yellow", color: "var(--yellow-light)" };
+    if(score >= 40) return { label: "Fair", cls: "pill-orange", color: "var(--orange-light)" };
+    return { label: "Poor", cls: "pill-red", color: "var(--red-light)" };
 }
 
 async function run() {
-    const locationInput = document.getElementById("location").value.trim();
-    const resultsContainer = document.getElementById("results");
+    const loc = document.getElementById("location").value.trim();
+    if(!loc) return;
 
-    if(!locationInput) {
-        alert("Enter a location");
-        return;
-    }
-
-    resultsContainer.style.opacity = "0.5";
-    resultsContainer.innerHTML = "<div class='locationInfo'>Loading forecast...</div>";
-
-    const cityQuery = locationInput.split(',')[0];
+    document.getElementById("results").style.display = "block";
+    document.getElementById("results").innerText = "Analyzing pipeline...";
+    document.getElementById("app-wrapper").style.display = "none";
 
     try {
-        const geo = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityQuery)}&count=1`);
-        const geoData = await geo.json();
-
+        const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(loc)}&count=1`);
+        const geoData = await geoRes.json();
         if(!geoData.results) {
-            resultsContainer.innerHTML = "<div class='locationInfo'>Location not found</div>";
-            resultsContainer.style.opacity = "1";
+            document.getElementById("results").innerText = "Location not found.";
             return;
         }
-
+        
         const { latitude, longitude, name, admin1 } = geoData.results[0];
 
-        // Fetch API includes temperature_2m for actual temp stats
-        const weather = await fetch(
-            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=precipitation_probability,temperature_2m,apparent_temperature,wind_speed_10m,cloud_cover&forecast_days=7&timezone=auto&temperature_unit=fahrenheit&wind_speed_unit=mph`
-        );
-        const data = await weather.json();
+        // Fetch 10-day data (Current + Hourly + Daily)
+        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,precipitation&hourly=precipitation_probability,temperature_2m,apparent_temperature,wind_speed_10m,cloud_cover&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,uv_index_max&forecast_days=10&timezone=auto&temperature_unit=fahrenheit&wind_speed_unit=mph`;
+        
+        const weatherRes = await fetch(weatherUrl);
+        const data = await weatherRes.json();
 
+        // 1. Build Top UI (Current Conditions)
+        const cur = data.current;
+        const todayDaily = {
+            hi: data.daily.temperature_2m_max[0],
+            lo: data.daily.temperature_2m_min[0],
+            uv: data.daily.uv_index_max[0] || 0
+        };
+        const curMeta = getWeatherMeta(cur.weather_code);
+
+        document.getElementById("ui-loc").innerText = `${name}, ${admin1 || ""}`;
+        document.getElementById("ui-temp").innerText = `${Math.round(cur.temperature_2m)}°`;
+        document.getElementById("ui-desc").innerText = `${curMeta.txt} · Feels like ${Math.round(cur.apparent_temperature)}°`;
+        document.getElementById("ui-wind").innerText = `💨 ${Math.round(cur.wind_speed_10m)} mph`;
+        document.getElementById("ui-hum").innerText = `💧 ${Math.round(cur.relative_humidity_2m)}% humidity`;
+        document.getElementById("ui-rain").innerText = `☔ ${cur.precipitation > 0 ? '>0' : '0'}% precip`;
+        document.getElementById("ui-uv").innerText = `☀️ UV ${Math.round(todayDaily.uv)}`;
+        document.getElementById("ui-hilo").innerText = `⬆ ${Math.round(todayDaily.hi)}° / ⬇ ${Math.round(todayDaily.lo)}°`;
+
+        // 2. Process Hourly Data for 10-Day Scoring
         const times = data.hourly.time;
-        const precip = data.hourly.precipitation_probability;
-        const actualTemp = data.hourly.temperature_2m;
-        const apparentTemp = data.hourly.apparent_temperature;
-        const wind = data.hourly.wind_speed_10m;
-        const clouds = data.hourly.cloud_cover;
-
         const days = {};
-
         times.forEach((t, i) => {
             const date = t.split("T")[0];
             const hour = parseInt(t.split("T")[1].slice(0,2));
-
             if(!days[date]) days[date] = [];
-
+            
             days[date].push({
                 hour,
-                precip: precip[i] || 0,
-                actualTemp: actualTemp[i] || 70,
-                apparentTemp: apparentTemp[i] || 70,
-                wind: wind[i] || 0,
-                clouds: clouds[i] || 0
+                precip: data.hourly.precipitation_probability[i] || 0,
+                actualTemp: data.hourly.temperature_2m[i],
+                apparentTemp: data.hourly.apparent_temperature[i],
+                wind: data.hourly.wind_speed_10m[i],
+                clouds: data.hourly.cloud_cover[i]
             });
         });
 
-        const dayKeys = Object.keys(days).slice(0,7);
-        let resultsHTML = `
-            <div class="locationInfo">
-                <h2>${name}, ${admin1 || ""}</h2>
-                <p>7-day "Usable Weather" forecast based on Feels-Like conditions</p>
-            </div>
-        `;
+        // Absolutes for the temperature bar rendering
+        const absMin = Math.min(...data.daily.temperature_2m_min);
+        const absMax = Math.max(...data.daily.temperature_2m_max);
 
-        let bestIndex = 0;
-        let overallBestGeneralScore = -Infinity;
-        const processedDays = [];
+        // 3. Process Daily Rows
+        let listHTML = "";
+        let todayScoreObj = null;
 
-        dayKeys.forEach((date, idx) => {
-            const entries = days[date];
-            // Look at standard daytime hours for the general scan
+        const dayKeys = Object.keys(days).slice(0, 10);
+        
+        dayKeys.forEach((dateStr, idx) => {
+            const entries = days[dateStr];
             const daytime = entries.filter(e => e.hour >= 7 && e.hour <= 19);
-            
-            const generalOutdoors = getGeneralOutdoorsProfile(date);
-            
-            // --- THE "BEST 4 HOURS" METHOD ---
-            let dailyBestGeneralScore = -1;
-            let bestWindowStats = null;
-            let bestWindowLabel = "";
+            const month = new Date(dateStr + "T12:00:00").getMonth();
 
-            // Scan through the day in 4-hour chunks
+            // Run the "Best 4 Hours" pipeline for the day
+            let dailyBestScore = -1;
             for(let i = 0; i <= daytime.length - 4; i++) {
                 const windowHours = daytime.slice(i, i + 4);
-                let windowScore = 0;
-                let wAvgActual = 0, wAvgFeels = 0, wMaxRain = 0, wMaxWind = 0, wAvgClouds = 0;
-
+                let windowTotal = 0;
+                
                 windowHours.forEach(h => {
-                    windowScore += calculateHourlyActivityScore(h, generalOutdoors);
-                    wAvgActual += h.actualTemp;
-                    wAvgFeels += h.apparentTemp;
-                    wMaxRain = Math.max(wMaxRain, h.precip);
-                    wMaxWind = Math.max(wMaxWind, h.wind);
-                    wAvgClouds += h.clouds;
-                });
-
-                const avgScore = windowScore / 4;
-
-                // If this 4-hour chunk is better than the previous ones, save it!
-                if(avgScore > dailyBestGeneralScore) {
-                    dailyBestGeneralScore = avgScore;
-                    bestWindowStats = {
-                        avgActual: wAvgActual / 4,
-                        avgFeels: wAvgFeels / 4,
-                        maxRain: wMaxRain, 
-                        maxWind: wMaxWind,
-                        avgClouds: wAvgClouds / 4
-                    };
-                    const startH = windowHours[0].hour;
-                    const endH = windowHours[3].hour;
-                    bestWindowLabel = `${formatHour(startH)} - ${formatHour(endH + 1)}`;
-                }
-            }
-
-            // Fallback just in case
-            if (!bestWindowStats) bestWindowStats = {avgActual:0, avgFeels:0, maxRain:0, maxWind:0, avgClouds:0};
-
-            // Calculate Specific Activities using their exact configured hours
-            const dailyActivityScores = {};
-            activities.forEach(activity => {
-                let totalScore = 0;
-                const activeHours = entries.filter(e => e.hour >= activity.startHour && e.hour <= activity.endHour);
-                
-                activeHours.forEach(hour => {
-                    totalScore += calculateHourlyActivityScore(hour, activity);
+                    const base = Pipeline.getBaseComfort(h);
+                    const final = Pipeline.applyContext(base, h, month);
+                    windowTotal += final;
                 });
                 
-                dailyActivityScores[activity.name] = totalScore / (activeHours.length || 1);
-            });
-
-            // Keep track of the absolute best day of the week
-            if(dailyBestGeneralScore > overallBestGeneralScore) {
-                overallBestGeneralScore = dailyBestGeneralScore;
-                bestIndex = idx;
+                const avgScore = windowTotal / 4;
+                if(avgScore > dailyBestScore) dailyBestScore = avgScore;
             }
+            if(dailyBestScore < 0) dailyBestScore = 0; // Fallback
 
-            processedDays.push({ 
-                date, 
-                generalScore: dailyBestGeneralScore, 
-                bestWindowLabel,
-                dailyActivityScores, 
-                stats: bestWindowStats 
-            });
-        });
-
-        processedDays.forEach((d, i) => {
-            const icon = getIcon(d.generalScore);
-            const label = getLabel(d.generalScore);
+            // Daily UI Variables
+            const dayMin = data.daily.temperature_2m_min[idx];
+            const dayMax = data.daily.temperature_2m_max[idx];
+            const maxPrecip = data.daily.precipitation_probability_max[idx];
+            const meta = getWeatherMeta(data.daily.weather_code[idx]);
+            const scoreStyle = getScoreStyling(dailyBestScore);
             
-            const dateObj = new Date(d.date + "T12:00:00");
-            const labelDate = i === 0 ? "Today" : 
-                              i === 1 ? "Tomorrow" : 
-                              dateObj.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-            
-            const detailId = "detail_" + i;
-            let activitiesHTML = "";
+            // Bar Calculation
+            const leftPct = ((dayMin - absMin) / (absMax - absMin)) * 100;
+            const widthPct = ((dayMax - dayMin) / (absMax - absMin)) * 100;
 
-            activities.forEach(act => {
-                const month = dateObj.getMonth();
+            // Date Formatting
+            const dObj = new Date(dateStr + "T12:00:00");
+            const dayName = idx === 0 ? "Today" : dObj.toLocaleDateString("en-US", { weekday: "short" });
+            const monthDay = dObj.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
-                if (act.months && !act.months.includes(month)) {
-                    return;
-                }
+            if(idx === 0) todayScoreObj = { score: Math.round(dailyBestScore), style: scoreStyle, dateTxt: monthDay };
 
-                const score = d.dailyActivityScores[act.name].toFixed(0);
-                const color = score < 50 ? "#ef4444" : score > 80 ? "#22c55e" : "#444";
-                
-                activitiesHTML += `
-                    <div class="activity-item">
-                        <span>${act.name}</span>
-                        <strong style="color: ${color}">${score}/100</strong>
-                    </div>
-                `;
-            });
-            
-            resultsHTML += `
-            <div class="card ${i === bestIndex ? "best" : ""}">
-                <h3>${labelDate}</h3>
-                <div class="icon">${icon}</div>
-                <strong>${label}</strong>
-                
-                <div class="score">
-                    ${d.generalScore.toFixed(0)} <span style="font-size:14px; color:#666;">/ 100</span>
+            listHTML += `
+            <div class="f-row">
+                <div class="f-date"><b>${dayName}</b><span>${monthDay}</span></div>
+                <div class="f-icon">${meta.icon}</div>
+                <div class="f-desc">${meta.txt}</div>
+                <div class="f-temp muted">${Math.round(dayMin)}°</div>
+                <div class="bar-wrapper">
+                    <div class="bar-fill" style="margin-left: ${leftPct}%; width: ${widthPct}%;"></div>
                 </div>
-
-                <div class="activity-list">
-                    ${activitiesHTML}
-                </div>
-
-                <button class="detailsBtn" onclick="toggleDetails('${detailId}')">
-                    Why this score?
-                </button>
-
-                <div class="details" id="${detailId}">
-                    <div style="color:#007aff; margin-bottom:8px;"><b>Best Window:</b> ${d.bestWindowLabel}</div>
-                    <div><b>Avg Actual Temp:</b> ${d.stats.avgActual.toFixed(1)}°F</div>
-                    <div><b>Avg Feels Like:</b> ${d.stats.avgFeels.toFixed(1)}°F</div>
-                    <div><b>Max Rain Chance:</b> ${d.stats.maxRain}%</div>
-                    <div><b>Max Wind:</b> ${d.stats.maxWind.toFixed(1)} mph</div>
-                    <div><b>Avg Cloud Cover:</b> ${d.stats.avgClouds.toFixed(0)}%</div>
-                </div>
+                <div class="f-temp">${Math.round(dayMax)}°</div>
+                <div class="f-precip">${maxPrecip > 0 ? maxPrecip + '%' : '-'}</div>
+                <div class="score-pill ${scoreStyle.cls}">outdoor ${Math.round(dailyBestScore)}</div>
             </div>
             `;
         });
 
-        resultsContainer.innerHTML = resultsHTML;
-        resultsContainer.style.opacity = "1";
+        // 4. Final Render
+        document.getElementById("forecast-list").innerHTML = listHTML;
+        
+        // Update top gauge with today's pipeline score
+        document.getElementById("ui-top-score").innerText = todayScoreObj.score;
+        document.getElementById("ui-top-score").style.color = todayScoreObj.style.color;
+        document.getElementById("ui-top-score").nextElementSibling.innerText = todayScoreObj.style.label;
+        document.getElementById("ui-top-date").innerText = todayScoreObj.dateTxt;
+
+        document.getElementById("results").style.display = "none";
+        document.getElementById("app-wrapper").style.display = "block";
 
     } catch(e) {
-        console.log(e);
-        resultsContainer.innerHTML = "<div class='locationInfo'>Error loading weather data. Please try again.</div>";
-        resultsContainer.style.opacity = "1";
+        console.error(e);
+        document.getElementById("results").innerText = "Data pipeline error. Please try again.";
     }
 }
 </script>
