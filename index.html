@@ -1,1355 +1,997 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Weather Reality Pro V3</title>
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RealFeel — Apparent Temperature Instrument</title>
 <style>
-:root {
-    --bg-base: #09101d;
-    --bg-panel: #111a2c;
-    --bg-panel-hover: #162138;
-    --text-main: #f8fafc;
-    --text-muted: #94a3b8;
-    --text-dark: #64748b;
-    --accent: #38bdf8;
-    --bar-bg: #1e293b;
-    
-    --green: #22c55e;
-    --green-light: #4ade80;
-    --green-bg: rgba(34, 197, 94, 0.15);
-    
-    --yellow: #eab308;
-    --yellow-light: #fde047;
-    --yellow-bg: rgba(234, 179, 8, 0.15);
-    
-    --orange: #f97316;
-    --orange-light: #fdba74;
-    --orange-bg: rgba(249, 115, 22, 0.15);
-    
-    --red: #ef4444;
-    --red-light: #fca5a5;
-    --red-bg: rgba(239, 68, 68, 0.15);
-}
+  /* ==========================================================================
+     1. TYPOGRAPHY & CSS VARIABLES
+     ========================================================================== */
+  @font-face {
+    font-family: 'sys-mono';
+    src: local('SF Mono'), local('Consolas');
+  }
 
-body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, sans-serif;
-    background: var(--bg-base);
-    color: var(--text-main);
+  :root {
+    /* Core Color Palette */
+    --ink: #e8ecef;
+    --dim: #7b8794;
+    --panel: #0f1720;
+    --panel-2: #141f2b;
+    --line: #253241;
+    --amber: #ffb454;
+    --cyan: #5fd4d0;
+    --frost: #8fb8ff;
+    --danger: #ff6b6b;
+    --bg: #0a0f16;
+  }
+
+  * { box-sizing: border-box; }
+
+  /* Base Background & Text Styling */
+  html, body {
     margin: 0;
-    padding: 20px;
+    min-height: 100vh;
+    /* Soft glowing orbs in the background */
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(95,212,208,0.10), transparent 60%),
+      radial-gradient(ellipse 700px 500px at 100% 0%, rgba(255,180,84,0.08), transparent 55%),
+      var(--bg);
+    color: var(--ink);
+    font-family: ui-monospace, 'SF Mono', 'Cascadia Code', Consolas, monospace;
     -webkit-font-smoothing: antialiased;
-}
+  }
 
-/* Search Area */
-.search-container {
-    max-width: 800px;
-    margin: 0 auto 30px auto;
+  /* ==========================================================================
+     2. MAIN LAYOUT & TYPOGRAPHY
+     ========================================================================== */
+  .wrap {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 48px 20px 80px;
+  }
+
+  /* Small top label with glowing dot */
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--cyan);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .eyebrow::before {
+    content: '';
+    width: 7px; height: 7px;
+    background: var(--cyan);
+    border-radius: 50%;
+    box-shadow: 0 0 10px 2px rgba(95,212,208,0.6);
+  }
+
+  h1 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 400;
+    font-style: italic;
+    font-size: clamp(28px, 5vw, 40px);
+    margin: 0 0 6px;
+    letter-spacing: 0.01em;
+    color: #fff;
+  }
+
+  .sub {
+    color: var(--dim);
+    font-size: 13px;
+    line-height: 1.6;
+    max-width: 52ch;
+    margin-bottom: 32px;
+  }
+
+  /* ==========================================================================
+     3. SEARCH FORM & BUTTONS
+     ========================================================================== */
+  form {
     display: flex;
     gap: 10px;
-    align-items: center;
-    flex-wrap: wrap;
-}
+    margin-bottom: 28px;
+  }
 
-input {
-    flex-grow: 1;
-    min-width: 200px;
-    background: var(--bg-panel);
-    border: 1px solid var(--bar-bg);
-    padding: 14px 18px;
-    border-radius: 12px;
-    color: white;
-    font-size: 15px;
+  input[type=text] {
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    padding: 13px 16px;
+    border-radius: 3px;
+    font-family: inherit;
+    font-size: 14px;
     outline: none;
-}
+  }
+  input[type=text]:focus { border-color: var(--cyan); }
+  input[type=text]::placeholder { color: #4a5764; }
 
-input:focus { border-color: var(--accent); }
-
-button {
-    background: var(--accent);
-    color: #000;
+  button {
+    background: var(--amber);
+    color: #1a1206;
     border: none;
-    padding: 14px 20px;
-    border-radius: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    font-size: 14px;
-}
-
-button:hover { background: #7dd3fc; }
-
-.fav-btn {
-    background: var(--bg-panel);
-    color: var(--text-muted);
-    border: 1px solid var(--bar-bg);
-}
-
-.fav-btn:hover { background: var(--bg-panel-hover); color: white; }
-
-/* Main App Wrapper */
-#app-wrapper {
-    max-width: 800px;
-    margin: 0 auto;
-    display: none;
-}
-
-/* Top Dashboard */
-.current-dash {
-    background: transparent;
-    padding: 10px 0 30px 0;
-}
-
-.loc-name {
+    padding: 0 22px;
+    border-radius: 3px;
+    font-family: inherit;
     font-size: 13px;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    margin-bottom: 5px;
     font-weight: 600;
-}
-
-.flex-between {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-}
-
-.temp-huge {
-    font-size: 96px;
-    font-weight: 200;
-    line-height: 1;
-    margin: 0;
-}
-
-.desc-text {
-    font-size: 18px;
-    color: var(--text-muted);
-    margin-top: 10px;
-}
-
-.gauge-box {
-    text-align: right;
-    padding-bottom: 10px;
-}
-.gauge-label {
-    font-size: 11px;
-    letter-spacing: 1px;
-    color: var(--text-dark);
-    text-transform: uppercase;
-    margin-bottom: 2px;
-    font-weight: 600;
-}
-.gauge-val {
-    font-size: 26px;
-    font-weight: 600;
-}
-.gauge-date {
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-top: 2px;
-}
-
-.metrics-row {
-    display: flex;
-    gap: 20px;
-    margin-top: 25px;
-    font-size: 14px;
-    color: var(--text-muted);
-    font-weight: 500;
-    flex-wrap: wrap;
-}
-
-/* 10-Day Forecast List */
-.forecast-section {
-    margin-top: 20px;
-}
-.section-title {
-    font-size: 12px;
-    letter-spacing: 1.5px;
-    color: var(--text-dark);
-    font-weight: 600;
-    margin-bottom: 15px;
-}
-
-.f-item {
-    margin-bottom: 8px;
-}
-
-.f-row {
-    display: grid;
-    grid-template-columns: 80px 40px 1fr 40px 120px 40px 50px 90px;
-    align-items: center;
-    background: var(--bg-panel);
-    padding: 16px 20px;
-    border-radius: 16px;
+    letter-spacing: 0.03em;
     cursor: pointer;
-    transition: transform 0.2s, background 0.2s;
-    user-select: none;
-}
+    transition: filter 0.15s ease;
+  }
+  button:hover { filter: brightness(1.1); }
+  button:disabled { opacity: 0.5; cursor: progress; }
 
-.f-row:hover {
-    background: var(--bg-panel-hover);
-    transform: scale(1.005);
-}
+  /* GPS Location Button */
+  .locbtn {
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--dim);
+    padding: 0 16px;
+  }
+  .locbtn:hover { color: var(--cyan); border-color: var(--cyan); filter: none; }
 
-.f-date { font-size: 15px; font-weight: 500; }
-.f-date span { display: block; font-size: 12px; color: var(--text-dark); margin-top: 2px; }
+  .status {
+    font-size: 12px;
+    color: var(--dim);
+    min-height: 18px;
+    margin: -14px 0 20px;
+  }
+  .status.err { color: var(--danger); }
 
-.f-icon { font-size: 20px; text-align: center; }
-.f-desc { font-size: 14px; color: var(--text-muted); padding-left: 10px; }
-.f-temp { font-size: 15px; font-weight: 500; text-align: center; }
-.f-temp.muted { color: var(--text-muted); }
+  /* ==========================================================================
+     4. HORIZONTAL DAY SELECTOR STRIP
+     ========================================================================== */
+  .strip {
+    display: none;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 10px;
+    margin-bottom: 22px;
+    scrollbar-width: thin;
+  }
+  .strip.show { display: flex; }
+  .strip::-webkit-scrollbar { height: 5px; }
+  .strip::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
 
-/* Dynamic Temp Bar */
-.bar-wrapper {
-    height: 4px;
-    background: var(--bar-bg);
-    border-radius: 2px;
-    margin: 0 10px;
+  .daycard {
+    flex: 0 0 auto;
+    min-width: 92px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 12px 10px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .daycard:hover { border-color: var(--frost); }
+  .daycard.active {
+    border-color: var(--amber);
+    background: var(--panel-2);
+    box-shadow: inset 0 0 0 1px rgba(255,180,84,0.25);
+  }
+  
+  .daycard .dlabel {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-bottom: 8px;
+  }
+  .daycard.active .dlabel { color: var(--amber); }
+  
+  .daycard .dfeel {
+    font-size: 20px;
+    color: #fff;
+    font-family: Georgia, serif;
+  }
+  .daycard .dfeel small { color: var(--dim); font-size: 11px; font-family: inherit; }
+  
+  .daycard .dactual {
+    font-size: 11px;
+    color: var(--dim);
+    margin-top: 4px;
+  }
+  .daycard .dscore {
+    margin-top: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding: 2px 6px;
+    border-radius: 10px;
+    display: inline-block;
+  }
+
+  /* ==========================================================================
+     5. MAIN INSTRUMENT DISPLAY PANEL
+     ========================================================================== */
+  .instrument {
+    display: none;
+    border: 1px solid var(--line);
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border-radius: 6px;
+    padding: 36px;
     position: relative;
     overflow: hidden;
-}
-.bar-fill {
+  }
+  .instrument.show { display: block; }
+
+  /* City location tag inside the instrument */
+  .instrument::before {
+    content: attr(data-place);
     position: absolute;
-    height: 100%;
-    border-radius: 2px;
-    background: linear-gradient(90deg, #3b82f6, #f97316);
-}
+    top: 16px; right: 18px;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    color: var(--dim);
+    text-transform: uppercase;
+  }
 
-.f-precip { font-size: 13px; color: var(--accent); text-align: right; padding-right: 15px; }
-
-/* Score Pills */
-.score-pill {
-    padding: 6px 0;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 600;
-    text-align: center;
-    border: 1px solid transparent;
-}
-.pill-green { border-color: var(--green); color: var(--green-light); background: var(--green-bg); }
-.pill-yellow { border-color: var(--yellow); color: var(--yellow-light); background: var(--yellow-bg); }
-.pill-orange { border-color: var(--orange); color: var(--orange-light); background: var(--orange-bg); }
-.pill-red { border-color: var(--red); color: var(--red-light); background: var(--red-bg); }
-
-/* Expandable Reason Card */
-.reason-card {
-    display: none;
-    background: #0d1524;
-    border: 1px solid var(--bar-bg);
-    border-top: none;
-    border-bottom-left-radius: 16px;
-    border-bottom-right-radius: 16px;
-    padding: 16px 20px;
-    margin-top: -6px;
-    font-size: 13px;
-    color: var(--text-muted);
-    line-height: 1.5;
-}
-
-.reason-card strong {
-    color: var(--text-main);
-}
-
-.reason-metrics {
+  /* Grid for High/Low Splits */
+  .split {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 10px;
-    margin-top: 12px;
-    font-size: 12px;
-    color: var(--text-dark);
-}
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  .split .feels-value { font-size: clamp(40px, 8vw, 60px); }
+  
+  .split-label {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-bottom: 4px;
+  }
+  .split-label.day { color: var(--amber); }
+  .split-label.night { color: var(--frost); }
 
-@media (max-width: 650px) {
-    .f-row { grid-template-columns: 70px 30px 1fr 80px; }
-    .f-temp, .bar-wrapper, .f-precip { display: none; }
-    .temp-huge { font-size: 72px; }
-}
+  .headline {
+    display: flex;
+    align-items: baseline;
+    gap: 22px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+
+  .feels-label {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--amber);
+  }
+
+  .feels-value {
+    font-family: Georgia, serif;
+    font-size: clamp(56px, 12vw, 92px);
+    line-height: 1;
+    font-weight: 400;
+    color: #fff;
+  }
+  .feels-value sup {
+    font-size: 0.32em;
+    color: var(--dim);
+    top: -0.6em;
+  }
+
+  .actual-value { color: var(--dim); font-size: 15px; }
+  .actual-value b { color: var(--ink); font-weight: 600; }
+
+  /* High/Low Variance Badges */
+  .delta {
+    display: inline-block;
+    margin-left: 10px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    border: 1px solid var(--line);
+  }
+  .delta.warmer { color: var(--amber); border-color: rgba(255,180,84,0.4); }
+  .delta.colder { color: var(--frost); border-color: rgba(143,184,255,0.4); }
+  .delta.flat { color: var(--dim); }
+
+  /* Model tracking labels */
+  .model-tag {
+    margin-top: 18px;
+    font-size: 11px;
+    color: var(--dim);
+    letter-spacing: 0.04em;
+    border-top: 1px solid var(--line);
+    padding-top: 16px;
+  }
+  .model-tag span { color: var(--cyan); }
+
+  /* Secondary Stats Grid (Wind, Humidity, etc) */
+  .grid {
+    margin-top: 22px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .cell { background: var(--panel); padding: 14px 16px; }
+  .cell .k {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-bottom: 6px;
+  }
+  .cell .v { font-size: 18px; color: var(--ink); }
+
+  /* Algorithm Breakdown Output */
+  .factors {
+    margin-top: 22px;
+    font-size: 12px;
+    color: var(--dim);
+    line-height: 1.8;
+  }
+  .factors .f-title {
+    color: var(--ink);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+  .factors .term { color: var(--cyan); }
+
+  /* ==========================================================================
+     6. OUTDOOR SCORE BREAKDOWN UI
+     ========================================================================== */
+  .score-panel {
+    margin-top: 22px;
+    border-top: 1px solid var(--line);
+    padding-top: 18px;
+  }
+  .score-head {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 10px;
+  }
+  .score-num { font-family: Georgia, serif; font-size: 34px; color: #fff; }
+  .score-label { font-size: 13px; font-weight: 600; }
+  .score-reasons {
+    font-size: 12px;
+    color: var(--dim);
+    line-height: 1.9;
+  }
+  .score-reasons li { margin-left: 16px; }
+
+  footer {
+    margin-top: 40px;
+    font-size: 11px;
+    color: #4a5764;
+    line-height: 1.7;
+  }
+  footer a { color: var(--dim); }
 </style>
 </head>
-
 <body>
+<div class="wrap">
+  <div class="eyebrow">Instrument · Apparent Temperature</div>
+  <h1>What it actually feels like outside.</h1>
+  <p class="sub">A blend of NOAA's heat index and wind chill models, tuned across the transition zone and adjusted for cloud cover, using live data from Open‑Meteo.</p>
 
-<div class="search-container">
-    <input id="location" placeholder="Search city (e.g. San Francisco, CA)">
-    <button onclick="run()">Search</button>
-    <button class="fav-btn" onclick="searchFavorite('Revere, MA')">📍 Revere, MA</button>
-</div>
+  <form id="searchForm">
+    <input type="text" id="cityInput" placeholder="Enter a city — e.g. Austin, TX" autocomplete="off">
+    <button type="button" class="locbtn" id="geoBtn" title="Use current location">⌖</button>
+    <button type="submit" id="goBtn">Read</button>
+  </form>
+  
+  <div class="status" id="status"></div>
 
-<div id="results" style="text-align:center; color: #64748b; margin-top: 40px;">Enter a location to view the V3 Perception Framework Forecast.</div>
+  <!-- Horizontal Scrollable Day Cards -->
+  <div class="strip" id="strip"></div>
 
-<div id="app-wrapper">
-    <div class="current-dash">
-        <div class="loc-name" id="ui-loc">--</div>
-        
-        <div class="flex-between">
-            <h1 class="temp-huge" id="ui-temp">--°</h1>
-            
-            <div class="gauge-box">
-                <div class="gauge-label">Outdoor Score</div>
-                <div class="gauge-val" id="ui-top-score">--</div>
-                <div class="gauge-date" id="ui-top-date">--</div>
-            </div>
-        </div>
-        
-        <div class="desc-text" id="ui-desc">--</div>
-        
-        <div class="metrics-row">
-            <span id="ui-wind">💨 --</span>
-            <span id="ui-hum">💧 --</span>
-            <span id="ui-rain">☔ --</span>
-            <span id="ui-uv">☀️ --</span>
-            <span id="ui-hilo">⬆ -- / ⬇ --</span>
-        </div>
-    </div>
-    
-    <div class="forecast-section">
-        <div class="section-title">10-DAY FORECAST (CLICK FOR PERCEPTION SCORES)</div>
-        <div id="forecast-list"></div>
-    </div>
+  <!-- Main Output Panel -->
+  <div class="instrument" id="instrument" data-place="">
+    <div id="instrumentBody"></div>
+  </div>
+
+  <footer>
+    Data: Open‑Meteo (open-meteo.com), no API key required. "Now" uses live current conditions; the 9 days after
+    that use daily aggregated highs/lows, mean humidity, max wind, and mean cloud cover, so they're a coarser
+    estimate than the live reading. Formula: NOAA Rothfusz heat index regression for T ≥ 80°F, NWS wind chill for
+    T ≤ 50°F with wind &gt; 3 mph, linear blend between, with a cloud‑cover based solar adjustment layered on top.
+    The Outdoor Score blends temperature comfort, wind, sun/cloud, and humidity into a base score, then applies a
+    rain multiplier built from hourly data — so brief showers, all-day rain, and overnight-only rain are scored
+    differently. This is an independent implementation and is not affiliated with AccuWeather's RealFeel®.
+  </footer>
 </div>
 
 <script>
-document.getElementById("location").addEventListener("keypress", function(event) {
-    if (event.key === "Enter") run();
+// ============================================================================
+// 1. DOM ELEMENTS & STATE MANAGEMENT
+// ============================================================================
+const els = {
+  form: document.getElementById('searchForm'),
+  input: document.getElementById('cityInput'),
+  geoBtn: document.getElementById('geoBtn'),
+  goBtn: document.getElementById('goBtn'),
+  status: document.getElementById('status'),
+  strip: document.getElementById('strip'),
+  instrument: document.getElementById('instrument'),
+  instrumentBody: document.getElementById('instrumentBody'),
+};
+
+let STATE = { place: '', current: null, days: [], selected: -1 };
+
+// Helper to push status/error messages to the UI
+function setStatus(msg, isErr){
+  els.status.textContent = msg || '';
+  els.status.classList.toggle('err', !!isErr);
+}
+
+// ============================================================================
+// 2. MATHEMATICAL ENGINES (NOAA & NWS Models)
+// ============================================================================
+
+// National Weather Service Wind Chill formula
+function windChillF(tempF, windMph){
+  const v16 = Math.pow(windMph, 0.16);
+  return 35.74 + 0.6215*tempF - 35.75*v16 + 0.4275*tempF*v16;
+}
+
+// NOAA Rothfusz Heat Index regression
+function heatIndexF(tempF, rh){
+  // Base simple formula
+  let hi = 0.5 * (tempF + 61.0 + ((tempF-68.0)*1.2) + (rh*0.094));
+  hi = (hi + tempF) / 2;
+
+  // Full regression kicks in above 80F
+  if (hi >= 80){
+    hi = -42.379 + 2.04901523*tempF + 10.14333127*rh
+       - 0.22475541*tempF*rh - 0.00683783*tempF*tempF
+       - 0.05481717*rh*rh + 0.00122874*tempF*tempF*rh
+       + 0.00085282*tempF*rh*rh - 0.00000199*tempF*tempF*rh*rh;
+
+    // Adjustments for extreme ends of the spectrum
+    if (rh < 13 && tempF >= 80 && tempF <= 112){
+      const adj = ((13-rh)/4) * Math.sqrt((17-Math.abs(tempF-95.0))/17);
+      hi -= adj;
+    } else if (rh > 85 && tempF >= 80 && tempF <= 87){
+      const adj = ((rh-85)/10) * ((87-tempF)/5);
+      hi += adj;
+    }
+  }
+  return hi;
+}
+
+// Calculates added warmth from direct sunlight during the day
+function cloudSunAdjustment(tempF, cloudPct, isDay){
+  if (!isDay) return 0;
+  if (tempF < 45) return 0; 
+  const clearness = Math.max(0, (100 - cloudPct) / 100); 
+  const maxBoost = tempF > 85 ? 3 : 6; 
+  return clearness * maxBoost;
+}
+
+// Orchestrator: Decides which math model to run based on current temp
+function computeFeelsLike({ tempF, rh, windMph, cloudPct, isDay }){
+  let base;
+  let model;
+
+  if (tempF >= 80){
+    base = heatIndexF(tempF, rh);
+    model = 'NOAA Heat Index';
+  } else if (tempF <= 50 && windMph > 3){
+    base = windChillF(tempF, windMph);
+    model = 'NWS Wind Chill';
+  } else if (tempF > 50 && tempF < 80){
+    base = tempF;
+    model = 'Ambient (mild)';
+  } else {
+    base = tempF; 
+    model = 'Ambient (calm, cold)';
+  }
+
+  const sunAdj = cloudSunAdjustment(tempF, cloudPct, isDay);
+  const feels = base + sunAdj;
+
+  return { feels, base, sunAdj, model };
+}
+
+// ============================================================================
+// 3. OUTDOOR SCORING ALGORITHM & CURVES
+// ============================================================================
+function clamp(n, lo, hi){ return Math.max(lo, Math.min(hi, n)); }
+
+// Piecewise linear interpolation to plot values along the curve arrays below
+function interp(breakpoints, x){
+  if (x <= breakpoints[0][0]) return breakpoints[0][1];
+  const last = breakpoints[breakpoints.length - 1];
+  if (x >= last[0]) return last[1];
+  for (let i = 0; i < breakpoints.length - 1; i++){
+    const [x0, y0] = breakpoints[i];
+    const [x1, y1] = breakpoints[i + 1];
+    if (x >= x0 && x <= x1){
+      const t = (x - x0) / (x1 - x0);
+      return y0 + t * (y1 - y0);
+    }
+  }
+}
+
+// The "Personality" of the score. Edit these points to change the outcomes.
+const CURVES = {
+  temp: [
+    [-10, 0], [0, 8], [20, 25], [32, 45], [45, 68], [60, 88],
+    [70, 100], [80, 100], [85, 90], [95, 65], [105, 35], [115, 12], [125, 0]
+  ],
+  wind: [[0, 1], [25, 1], [30, 0.8], [35, 0.6], [45, 0.35], [60, 0.15], [80, 0.05]],
+  cloud: [
+    [0, 1], [50, 0.98], [60, 0.95], [70, 0.90], [80, 0.85], [90, 0.68], [100, 0.5]
+  ],
+  precip: [
+    [0, 1], [0.05, 0.95], [0.15, 0.82], [0.3, 0.65], [0.5, 0.48], [0.7, 0.32], [1, 0.15]
+  ]
+};
+
+// Converters utilizing the curves
+function tempScoreFromFeels(feelsF){
+  return clamp(interp(CURVES.temp, feelsF), 0, 100);
+}
+
+function windFactor(windMph){
+  const factor = clamp(interp(CURVES.wind, windMph), 0.05, 1);
+  let note = null;
+  if (windMph > 45) note = `Extreme wind (${Math.round(windMph)} mph)`;
+  else if (windMph > 35) note = `Very windy (${Math.round(windMph)} mph)`;
+  else if (windMph > 25) note = `Windy (${Math.round(windMph)} mph)`;
+  return { factor, note };
+}
+
+function cloudFactor(cloudPct){
+  return clamp(interp(CURVES.cloud, cloudPct), 0.5, 1);
+}
+
+function precipitationFactor(stats){
+  const { daylightHours, rainyDaylightHours, rainyNightHours, maxDaylightIntensity } = stats;
+
+  if (daylightHours === 0 || rainyDaylightHours === 0){
+    return {
+      factor: 1.0,
+      note: rainyNightHours > 0 ? 'Rain expected, but only overnight' : 'No rain expected'
+    };
+  }
+
+  // Calculate rain severity
+  const fraction = rainyDaylightHours / daylightHours;
+  const intensityNorm = clamp(maxDaylightIntensity / 8, 0, 1);
+  const severity = clamp(fraction * 0.7 + intensityNorm * 0.3, 0, 1);
+  const factor = clamp(interp(CURVES.precip, severity), 0.1, 1);
+
+  // Generate plain-text note
+  let note;
+  if (fraction < 0.15) note = 'Brief, passing rain during the day';
+  else if (fraction < 0.4) note = 'Scattered/intermittent rain through the day';
+  else if (fraction < 0.7) note = 'Rain for a good chunk of the day';
+  else note = 'Rain most or all of the day';
+
+  return { factor, note };
+}
+
+function scoreLabel(score){
+  if (score >= 90) return 'Ideal';
+  if (score >= 75) return 'Great outdoor day';
+  if (score >= 60) return 'Good, minor caveats';
+  if (score >= 40) return 'Mixed — plan around it';
+  if (score >= 20) return 'Rough day to be outside';
+  return 'Stay in';
+}
+
+// Master coordinator for the daily Outdoor Score
+function computeOutdoorScore(stats){
+  const { avgDaylightFeels, avgDaylightWind, avgDaylightCloud, daylightHours } = stats;
+
+  if (!daylightHours || Number.isNaN(avgDaylightFeels)){
+    return {
+      score: 0,
+      label: 'No daylight window',
+      reasons: ['No daylight hours in this location/date to evaluate'],
+      breakdown: { tempScore: 0, cloudFactor: 0, windFactor: 0, precipFactor: 0, precipNote: 'n/a' }
+    };
+  }
+
+  // Generate factors
+  const tScore = tempScoreFromFeels(avgDaylightFeels);
+  const cFactor = cloudFactor(avgDaylightCloud);
+  const precip = precipitationFactor(stats);
+  const wind = windFactor(avgDaylightWind);
+
+  // Combine into final score
+  const score = Math.round(clamp(tScore * cFactor * precip.factor * wind.factor, 0, 100));
+
+  // Determine reasoning for UI
+  let tempNote = null;
+  if (avgDaylightFeels > 95) tempNote = `Feels dangerously hot (${Math.round(avgDaylightFeels)}°F)`;
+  else if (avgDaylightFeels > 85) tempNote = `Feels quite hot (${Math.round(avgDaylightFeels)}°F)`;
+  else if (avgDaylightFeels < 20) tempNote = `Feels dangerously cold (${Math.round(avgDaylightFeels)}°F)`;
+  else if (avgDaylightFeels < 32) tempNote = `Feels freezing (${Math.round(avgDaylightFeels)}°F)`;
+
+  const cloudNote = cFactor < 0.92 ? `Overcast (${Math.round(avgDaylightCloud)}% cloud)` : null;
+  const reasons = [precip.note, wind.note, tempNote, cloudNote].filter(Boolean);
+
+  return {
+    score,
+    label: scoreLabel(score),
+    reasons,
+    breakdown: { tempScore: tScore, cloudFactor: cFactor, windFactor: wind.factor, precipFactor: precip.factor, precipNote: precip.note }
+  };
+}
+
+// ============================================================================
+// 4. DATA AGGREGATION
+// ============================================================================
+function collectDaylightRecords(dateStr, hourly){
+  const records = [];
+  let rainyDaylightHours = 0, rainyNightHours = 0, maxDaylightIntensity = 0;
+
+  for (let i = 0; i < hourly.time.length; i++){
+    if (!hourly.time[i].startsWith(dateStr)) continue;
+    const isDay = hourly.is_day[i] === 1;
+    const precip = hourly.precipitation[i] || 0;
+
+    if (isDay){
+      if (precip > 0.1) rainyDaylightHours++;
+      maxDaylightIntensity = Math.max(maxDaylightIntensity, precip);
+
+      // Pre-calculate Feels Like for this specific hour
+      const feels = computeFeelsLike({
+        tempF: hourly.temperature_2m[i],
+        rh: hourly.relative_humidity_2m[i],
+        windMph: hourly.wind_speed_10m[i],
+        cloudPct: hourly.cloud_cover[i],
+        isDay: true
+      }).feels;
+
+      records.push({
+        feels,
+        wind: hourly.wind_speed_10m[i],
+        cloud: hourly.cloud_cover[i],
+        rh: hourly.relative_humidity_2m[i]
+      });
+    } else if (precip > 0.1){
+      rainyNightHours++;
+    }
+  }
+
+  return { records, rainyDaylightHours, rainyNightHours, maxDaylightIntensity };
+}
+
+// Averages the records to get the daily metrics
+function aggregateDaylight(records){
+  if (!records.length){
+    return { avgFeels: NaN, avgWind: 0, avgCloud: 0, avgRH: 0 };
+  }
+  const n = records.length;
+  const sum = records.reduce((acc, r) => ({
+    feels: acc.feels + r.feels, wind: acc.wind + r.wind, cloud: acc.cloud + r.cloud, rh: acc.rh + r.rh
+  }), { feels: 0, wind: 0, cloud: 0, rh: 0 });
+
+  return { avgFeels: sum.feels / n, avgWind: sum.wind / n, avgCloud: sum.cloud / n, avgRH: sum.rh / n };
+}
+
+function hourlyStatsForDate(dateStr, hourly){
+  const { records, rainyDaylightHours, rainyNightHours, maxDaylightIntensity } = collectDaylightRecords(dateStr, hourly);
+  const agg = aggregateDaylight(records);
+
+  return {
+    daylightHours: records.length,
+    rainyDaylightHours,
+    rainyNightHours,
+    maxDaylightIntensity,
+    avgDaylightFeels: agg.avgFeels,
+    avgDaylightWind: agg.avgWind,
+    avgDaylightCloud: agg.avgCloud,
+    avgDaylightRH: agg.avgRH
+  };
+}
+
+// ============================================================================
+// 5. API INTEGRATION (Open-Meteo)
+// ============================================================================
+async function geocodeCity(name){
+  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1&language=en&format=json`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Geocoding request failed');
+  const data = await res.json();
+  if (!data.results || !data.results.length) throw new Error('No matching location found');
+  const r = data.results[0];
+  const label = [r.name, r.admin1, r.country].filter(Boolean).join(', ');
+  return { lat: r.latitude, lon: r.longitude, label };
+}
+
+async function fetchWeather(lat, lon){
+  const params = new URLSearchParams({
+    latitude: lat,
+    longitude: lon,
+    current: 'temperature_2m,relative_humidity_2m,wind_speed_10m,cloud_cover,is_day,apparent_temperature',
+    hourly: 'temperature_2m,relative_humidity_2m,wind_speed_10m,cloud_cover,precipitation,precipitation_probability,is_day',
+    daily: 'temperature_2m_max,temperature_2m_min,relative_humidity_2m_mean,wind_speed_10m_max,cloud_cover_mean,apparent_temperature_max,apparent_temperature_min,sunrise,sunset',
+    forecast_days: '10',
+    temperature_unit: 'fahrenheit',
+    wind_speed_unit: 'mph',
+    timezone: 'auto'
+  });
+  const url = `https://api.open-meteo.com/v1/forecast?${params.toString()}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Weather request failed');
+  const data = await res.json();
+  if (!data.current) throw new Error('No current conditions in response');
+  if (!data.daily) throw new Error('No daily forecast in response');
+  if (!data.hourly) throw new Error('No hourly forecast in response');
+  return data;
+}
+
+// ============================================================================
+// 6. DATA FORMATTING & UI PREPARATION
+// ============================================================================
+function dayLabel(dateStr, idx){
+  if (idx === 0) return 'Today';
+  const d = new Date(dateStr + 'T12:00:00');
+  return d.toLocaleDateString(undefined, { weekday: 'short' });
+}
+
+function buildDailyEntries(daily, hourly){
+  const entries = [];
+  for (let i = 0; i < daily.time.length; i++){
+    const rh = daily.relative_humidity_2m_mean[i];
+    const wind = daily.wind_speed_10m_max[i];
+    const cloud = daily.cloud_cover_mean[i];
+
+    // Compute Peak/Low Feels Like
+    const high = computeFeelsLike({ tempF: daily.temperature_2m_max[i], rh, windMph: wind, cloudPct: cloud, isDay: true });
+    const low = computeFeelsLike({ tempF: daily.temperature_2m_min[i], rh, windMph: wind, cloudPct: cloud, isDay: false });
+
+    // Generate Final Score
+    const stats = hourlyStatsForDate(daily.time[i], hourly);
+    const outdoor = computeOutdoorScore(stats);
+
+    entries.push({
+      date: daily.time[i],
+      label: dayLabel(daily.time[i], i),
+      tempMax: daily.temperature_2m_max[i],
+      tempMin: daily.temperature_2m_min[i],
+      rh, wind, cloud,
+      omApparentMax: daily.apparent_temperature_max[i],
+      omApparentMin: daily.apparent_temperature_min[i],
+      high, low, outdoor
+    });
+  }
+  return entries;
+}
+
+// Helpers for UI tags and colors
+function deltaTag(feelsRounded, actualRounded){
+  const diff = feelsRounded - actualRounded;
+  const cls = diff === 0 ? 'flat' : (diff > 0 ? 'warmer' : 'colder');
+  const text = diff === 0 ? 'matches actual' : (diff > 0 ? `+${diff}° warmer` : `${diff}° colder`);
+  return `<span class="delta ${cls}">${text}</span>`;
+}
+
+function scoreColor(score){
+  if (score >= 75) return { bg: 'rgba(95,212,208,0.15)', fg: 'var(--cyan)' };
+  if (score >= 40) return { bg: 'rgba(255,180,84,0.15)', fg: 'var(--amber)' };
+  return { bg: 'rgba(255,107,107,0.15)', fg: 'var(--danger)' };
+}
+
+// ============================================================================
+// 7. RENDER FUNCTIONS
+// ============================================================================
+function scoreBreakdownHTML(outdoor){
+  const c = scoreColor(outdoor.score);
+  return `
+    <div class="score-panel">
+      <div class="score-head">
+        <div class="score-num" style="color:${c.fg}">${outdoor.score}</div>
+        <div class="score-label" style="color:${c.fg}">${outdoor.label}</div>
+      </div>
+      <ul class="score-reasons">
+        ${outdoor.reasons.map(r => `<li>${r}</li>`).join('')}
+      </ul>
+    </div>
+  `;
+}
+
+// Renders the main "Now" view 
+function renderNowBody(){
+  const current = STATE.current;
+  const result = computeFeelsLike({
+    tempF: current.temperature_2m,
+    rh: current.relative_humidity_2m,
+    windMph: current.wind_speed_10m,
+    cloudPct: current.cloud_cover,
+    isDay: !!current.is_day
+  });
+  const feelsRounded = Math.round(result.feels);
+  const actualRounded = Math.round(current.temperature_2m);
+
+  els.instrumentBody.innerHTML = `
+    <div class="headline">
+      <div>
+        <div class="feels-label">Feels like right now</div>
+        <div class="feels-value">${feelsRounded}<sup>°F</sup></div>
+      </div>
+    </div>
+    <div class="actual-value">
+      Actual air temp <b>${actualRounded}°F</b>
+      ${deltaTag(feelsRounded, actualRounded)}
+    </div>
+    <div class="grid">
+      <div class="cell"><div class="k">Humidity</div><div class="v">${Math.round(current.relative_humidity_2m)}%</div></div>
+      <div class="cell"><div class="k">Wind</div><div class="v">${Math.round(current.wind_speed_10m)} mph</div></div>
+      <div class="cell"><div class="k">Cloud cover</div><div class="v">${Math.round(current.cloud_cover)}%</div></div>
+      <div class="cell"><div class="k">Daylight</div><div class="v">${current.is_day ? 'Day' : 'Night'}</div></div>
+    </div>
+    <div class="factors">
+      <div class="f-title">Breakdown</div>
+      <span class="term">Base (${result.model})</span> → ${result.base.toFixed(1)}°F<br>
+      <span class="term">Solar/cloud adjustment</span> → ${result.sunAdj >= 0 ? '+' : ''}${result.sunAdj.toFixed(1)}°F<br>
+      <span class="term">Open‑Meteo's own apparent temp</span> → ${Math.round(current.apparent_temperature)}°F (for comparison)
+    </div>
+    <div class="model-tag">Model in use: <span>${result.model}</span></div>
+    ${STATE.days[0] ? scoreBreakdownHTML(STATE.days[0].outdoor) : ''}
+  `;
+}
+
+// Renders the clicked day view
+function renderDayBody(entry){
+  const highF = Math.round(entry.high.feels);
+  const lowF = Math.round(entry.low.feels);
+  const highA = Math.round(entry.tempMax);
+  const lowA = Math.round(entry.tempMin);
+  const d = new Date(entry.date + 'T12:00:00');
+  const fullLabel = d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+
+  els.instrumentBody.innerHTML = `
+    <div class="feels-label" style="margin-bottom:16px;">${fullLabel}</div>
+    <div class="split">
+      <div>
+        <div class="split-label day">Daytime high</div>
+        <div class="feels-value">${highF}<sup>°F</sup></div>
+        <div class="actual-value">Actual <b>${highA}°F</b> ${deltaTag(highF, highA)}</div>
+      </div>
+      <div>
+        <div class="split-label night">Overnight low</div>
+        <div class="feels-value">${lowF}<sup>°F</sup></div>
+        <div class="actual-value">Actual <b>${lowA}°F</b> ${deltaTag(lowF, lowA)}</div>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="cell"><div class="k">Humidity (avg)</div><div class="v">${Math.round(entry.rh)}%</div></div>
+      <div class="cell"><div class="k">Wind (max)</div><div class="v">${Math.round(entry.wind)} mph</div></div>
+      <div class="cell"><div class="k">Cloud cover (avg)</div><div class="v">${Math.round(entry.cloud)}%</div></div>
+    </div>
+    <div class="factors">
+      <div class="f-title">Breakdown</div>
+      <span class="term">High model</span>: ${entry.high.model} → base ${entry.high.base.toFixed(1)}°F, sun/cloud adj ${entry.high.sunAdj >= 0 ? '+' : ''}${entry.high.sunAdj.toFixed(1)}°F<br>
+      <span class="term">Low model</span>: ${entry.low.model} → base ${entry.low.base.toFixed(1)}°F, sun/cloud adj ${entry.low.sunAdj >= 0 ? '+' : ''}${entry.low.sunAdj.toFixed(1)}°F<br>
+      <span class="term">Open‑Meteo's own apparent temp range</span> → ${Math.round(entry.omApparentMin)}–${Math.round(entry.omApparentMax)}°F (for comparison)
+    </div>
+    <div class="model-tag">Based on daily aggregated conditions, not hourly detail — treat as a guide.</div>
+    ${scoreBreakdownHTML(entry.outdoor)}
+  `;
+}
+
+// Renders the horizontal scrolling strip of day selectors
+function renderStrip(){
+  const items = [{ isNow: true, label: 'Now' }, ...STATE.days.map((d, i) => ({ isNow: false, idx: i, entry: d }))];
+
+  els.strip.innerHTML = items.map((item) => {
+    // Generate Now Card
+    if (item.isNow){
+      const result = computeFeelsLike({
+        tempF: STATE.current.temperature_2m,
+        rh: STATE.current.relative_humidity_2m,
+        windMph: STATE.current.wind_speed_10m,
+        cloudPct: STATE.current.cloud_cover,
+        isDay: !!STATE.current.is_day
+      });
+      const f = Math.round(result.feels);
+      const a = Math.round(STATE.current.temperature_2m);
+      const todayOutdoor = STATE.days[0] ? STATE.days[0].outdoor : null;
+      const c = todayOutdoor ? scoreColor(todayOutdoor.score) : null;
+      
+      return `<div class="daycard ${STATE.selected === -1 ? 'active' : ''}" data-idx="now">
+        <div class="dlabel">Now</div>
+        <div class="dfeel">${f}°</div>
+        <div class="dactual">actual ${a}°</div>
+        ${todayOutdoor ? `<div class="dscore" style="background:${c.bg};color:${c.fg}">${todayOutdoor.score}</div>` : ''}
+      </div>`;
+    }
+    
+    // Generate Future Day Cards
+    const e = item.entry;
+    const hf = Math.round(e.high.feels);
+    const lf = Math.round(e.low.feels);
+    const c = scoreColor(e.outdoor.score);
+    
+    return `<div class="daycard ${STATE.selected === item.idx ? 'active' : ''}" data-idx="${item.idx}">
+      <div class="dlabel">${e.label}</div>
+      <div class="dfeel">${hf}°<small>/${lf}°</small></div>
+      <div class="dactual">actual ${Math.round(e.tempMax)}°/${Math.round(e.tempMin)}°</div>
+      <div class="dscore" style="background:${c.bg};color:${c.fg}">${e.outdoor.score}</div>
+    </div>`;
+  }).join('');
+
+  els.strip.classList.add('show');
+  
+  // Attach event listeners to swap main panel views
+  els.strip.querySelectorAll('.daycard').forEach(card => {
+    card.addEventListener('click', () => {
+      const raw = card.dataset.idx;
+      STATE.selected = raw === 'now' ? -1 : parseInt(raw, 10);
+      renderStrip(); // Update active highlights
+      
+      if (STATE.selected === -1) renderNowBody();
+      else renderDayBody(STATE.days[STATE.selected]);
+    });
+  });
+}
+
+// ============================================================================
+// 8. EVENT LISTENERS
+// ============================================================================
+async function runForCoords(lat, lon, label){
+  setStatus('Reading atmosphere…');
+  els.goBtn.disabled = true;
+  try{
+    const data = await fetchWeather(lat, lon);
+    STATE.place = label;
+    STATE.current = data.current;
+    STATE.days = buildDailyEntries(data.daily, data.hourly);
+    STATE.selected = -1;
+
+    els.instrument.dataset.place = label;
+    els.instrument.classList.add('show');
+    renderStrip();
+    renderNowBody();
+    setStatus('');
+  } catch(err){
+    setStatus(err.message || 'Something went wrong fetching weather.', true);
+  } finally {
+    els.goBtn.disabled = false;
+  }
+}
+
+// User enters city manually
+els.form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const city = els.input.value.trim();
+  if (!city){ setStatus('Enter a city first.', true); return; }
+  setStatus('Locating…');
+  els.goBtn.disabled = true;
+  try{
+    const loc = await geocodeCity(city);
+    await runForCoords(loc.lat, loc.lon, loc.label);
+  } catch(err){
+    setStatus(err.message || 'Could not find that location.', true);
+    els.goBtn.disabled = false;
+  }
 });
 
-function searchFavorite(loc) {
-    document.getElementById("location").value = loc;
-    run();
-}
-
-function toggleReason(idx) {
-    const el = document.getElementById(`reason-${idx}`);
-    el.style.display = el.style.display === "block" ? "none" : "block";
-}
-
-const wmoMap = {
-    0: { txt: "Sunny", icon: "☀️" }, 1: { txt: "Mainly Sunny", icon: "🌤" },
-    2: { txt: "Partly Cloudy", icon: "⛅" }, 3: { txt: "Cloudy", icon: "☁️" },
-    45: { txt: "Foggy", icon: "🌫" }, 48: { txt: "Rime Fog", icon: "🌫" },
-    51: { txt: "Light Drizzle", icon: "🌧" }, 53: { txt: "Drizzle", icon: "🌧" },
-    55: { txt: "Heavy Drizzle", icon: "🌧" }, 61: { txt: "Light Rain", icon: "🌦" },
-    63: { txt: "Rain", icon: "🌧" }, 65: { txt: "Heavy Rain", icon: "🌧" },
-    71: { txt: "Light Snow", icon: "🌨" }, 73: { txt: "Snow", icon: "❄️" },
-    75: { txt: "Heavy Snow", icon: "❄️" }, 95: { txt: "Thunderstorms", icon: "⛈" }
-};
-function getWeatherMeta(code) { return wmoMap[code] || { txt: "Mixed", icon: "🌥" }; }
-
-
-// =========================================================================
-// 1. DATA-DRIVEN CONFIGURATIONS (Profiles)
-// =========================================================================
-const SCORING_PROFILES = {
-    "default": {
-        "thermal": {
-            "weight": 0.45,
-            "label": "Thermal Comfort",
-            "perceivedTemperature": {
-                "humidityFactor": 0.3, // Adds heat if dew point > 60
-                "windCooling": 0.4,    // Deducts temp based on wind speed
-                "cloudCooling": 8      // Max degrees to deduct if 100% cloudy (blocks solar radiation)
-            },
-            "comfortCurve": {
-                "type": "bell",
-                "parameters": { "center": 72, "sigma": 15 }
-            }
-        },
-        "rain": {
-            "weight": 0.30,
-            "label": "Precipitation",
-            "comfortCurve": {
-                "type": "exponential",
-                "parameters": { "ideal": 0, "decayRate": 15 }
-            }
-        },
-        "sky": {
-            "weight": 0.15,
-            "label": "Sky Conditions",
-            "comfortCurve": {
-                "type": "linear",
-                "parameters": { "ideal": 20, "tolerance": 80 }
-            }
-        },
-        "wind": {
-            "weight": 0.10,
-            "label": "Wind Intensity",
-            "comfortCurve": {
-                "type": "oneSidedUpper",
-                "parameters": { "ideal": 5, "maxAllowed": 25 }
-            }
-        }
-    }
-};
-
-
-// =========================================================================
-// 2. PARAMETER-DRIVEN CURVE REGISTRY
-// =========================================================================
-const CurveRegistry = {
-    bell: (val, params) => {
-        const dist = Math.abs(val - params.center);
-        const score = 100 * Math.exp(-(dist * dist) / (2 * params.sigma * params.sigma));
-        return Math.max(0, Math.min(100, score));
-    },
-    linear: (val, params) => {
-        const dist = Math.abs(val - params.ideal);
-        const score = 100 - ((dist / params.tolerance) * 100);
-        return Math.max(0, Math.min(100, score));
-    },
-    oneSidedUpper: (val, params) => {
-        if (val <= params.ideal) return 100;
-        if (val >= params.maxAllowed) return 0;
-        const dist = val - params.ideal;
-        const score = 100 - ((dist / (params.maxAllowed - params.ideal)) * 100);
-        return Math.max(0, Math.min(100, score));
-    },
-    exponential: (val, params) => {
-        if (val <= params.ideal) return 100;
-        const dist = val - params.ideal;
-        const score = 100 * Math.exp(-dist / params.decayRate);
-        return Math.max(0, Math.min(100, score));
-    }
-};
-
-
-// =========================================================================
-// 3. PERCEPTION ENGINE REGISTRY
-// =========================================================================
-// Each engine holds its own internal logic to generate a final normalized score
-const EngineRegistry = {
-    thermal: {
-        score: (weatherData, config) => {
-            let perceived = weatherData.actualTemp;
-            
-            // 1. Humidity (Dew Point) Penalty 
-            if (weatherData.dewPoint > 60) {
-                perceived += (weatherData.dewPoint - 60) * config.perceivedTemperature.humidityFactor;
-            }
-            
-            // 2. Wind Cooling
-            perceived -= weatherData.wind * config.perceivedTemperature.windCooling;
-            
-            // 3. Cloud Cooling (Blocking Solar Radiation)
-            perceived -= (weatherData.clouds / 100) * config.perceivedTemperature.cloudCooling;
-
-            // Apply curve to the final perceived temperature
-            const score = CurveRegistry[config.comfortCurve.type](perceived, config.comfortCurve.parameters);
-            
-            return { score: score, val: perceived, label: config.label, unit: "°" };
-        }
-    },
-    rain: {
-        score: (weatherData, config) => {
-            const val = weatherData.rainProb;
-            const score = CurveRegistry[config.comfortCurve.type](val, config.comfortCurve.parameters);
-            return { score: score, val: val, label: config.label, unit: "%" };
-        }
-    },
-    sky: {
-        score: (weatherData, config) => {
-            // Note: Cloud cover is shared. Thermal uses it for cooling, Sky uses it for visual pleasantness.
-            const val = weatherData.clouds;
-            const score = CurveRegistry[config.comfortCurve.type](val, config.comfortCurve.parameters);
-            return { score: score, val: val, label: config.label, unit: "%" };
-        }
-    },
-    wind: {
-        score: (weatherData, config) => {
-            const val = weatherData.wind;
-            const score = CurveRegistry[config.comfortCurve.type](val, config.comfortCurve.parameters);
-            return { score: score, val: val, label: config.label, unit: "mph" };
-        }
-    }
-};
-
-
-// =========================================================================
-// 4. THE COORDINATOR
-// =========================================================================
-function computeOutdoorScore(weatherData, profileConfig) {
-    let totalScore = 0;
-    const breakdown = {};
-
-    for (const [engineId, config] of Object.entries(profileConfig)) {
-        if (EngineRegistry[engineId]) {
-            const result = EngineRegistry[engineId].score(weatherData, config);
-            breakdown[engineId] = result;
-            totalScore += result.score * config.weight;
-        }
-    }
-
-    return {
-        finalScore: Math.max(0, Math.min(100, totalScore)),
-        breakdown: breakdown
-    };
-}
-
-
-// =========================================================================
-// 5. DAILY AGGREGATION STRATEGY (Isolated and Swappable)
-// =========================================================================
-function calculateDailyScore(daytimeHours, activeConfig) {
-    // Current Strategy: Search for the best continuous 4-hour window
-    let dailyBestScore = -1;
-    let bestBreakdown = null;
-
-    for(let i = 0; i <= daytimeHours.length - 4; i++) {
-        const windowHours = daytimeHours.slice(i, i + 4);
-        let windowTotal = 0;
-        let lastBreakdown = null;
-
-        windowHours.forEach(h => {
-            const result = computeOutdoorScore(h, activeConfig);
-            windowTotal += result.finalScore;
-            lastBreakdown = result.breakdown;
-        });
-        
-        const avgScore = windowTotal / 4;
-        if(avgScore > dailyBestScore) {
-            dailyBestScore = avgScore;
-            bestBreakdown = lastBreakdown;
-        }
-    }
-    
-    if (dailyBestScore < 0) dailyBestScore = 0;
-    
-    return { score: dailyBestScore, breakdown: bestBreakdown };
-}
-
-
-// ==========================================
-// MASTER WEATHER DATA REPOSITORY 
-// ==========================================
-async function fetchMasterWeatherData(lat, lon) {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-        `&current=temperature_2m,apparent_temperature,relative_humidity_2m,is_day,precipitation,weather_code,cloud_cover,wind_speed_10m` +
-        `&hourly=temperature_2m,dew_point_2m,precipitation_probability,weather_code,cloud_cover,wind_speed_10m` +
-        `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,uv_index_max` +
-        `&forecast_days=10&timezone=auto&temperature_unit=fahrenheit&wind_speed_unit=mph`;
-
-    const res = await fetch(url);
-    const data = await res.json();
-    const structuredDays = {};
-
-    data.hourly.time.forEach((t, i) => {
-        const dateStr = t.split("T")[0];
-        const hour = parseInt(t.split("T")[1].slice(0, 2));
-
-        if (!structuredDays[dateStr]) structuredDays[dateStr] = [];
-
-        // Raw variables stored identically. The engines decide how to use them.
-        structuredDays[dateStr].push({
-            time: t,
-            hour: hour,
-            actualTemp: data.hourly.temperature_2m[i],
-            dewPoint: data.hourly.dew_point_2m[i],
-            rainProb: data.hourly.precipitation_probability[i] || 0,
-            wind: data.hourly.wind_speed_10m[i] || 0,
-            clouds: data.hourly.cloud_cover[i] || 0
-        });
-    });
-
-    return { raw: data, structuredDays };
-}
-
-function getScoreStyling(score) {
-    if(score >= 80) return { label: "Excellent", cls: "pill-green", color: "var(--green-light)" };
-    if(score >= 60) return { label: "Good", cls: "pill-yellow", color: "var(--yellow-light)" };
-    if(score >= 40) return { label: "Fair", cls: "pill-orange", color: "var(--orange-light)" };
-    return { label: "Poor", cls: "pill-red", color: "var(--red-light)" };
-}
-
-async function run() {
-    const loc = document.getElementById("location").value.trim();
-    if(!loc) return;
-
-    document.getElementById("results").style.display = "block";
-    document.getElementById("results").innerText = "Executing Perception Framework...";
-    document.getElementById("app-wrapper").style.display = "none";
-
-    try {
-        const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(loc)}&count=1`);
-        const geoData = await geoRes.json();
-        if(!geoData.results) {
-            document.getElementById("results").innerText = "Location not found.";
-            return;
-        }
-        
-        const { latitude, longitude, name, admin1 } = geoData.results[0];
-
-        const master = await fetchMasterWeatherData(latitude, longitude);
-        const cur = master.raw.current;
-        const curMeta = getWeatherMeta(cur.weather_code);
-
-        // Top Dashboard UI
-        document.getElementById("ui-loc").innerText = `${name}, ${admin1 || ""}`;
-        document.getElementById("ui-temp").innerText = `${Math.round(cur.temperature_2m)}°`;
-        document.getElementById("ui-desc").innerText = `${curMeta.txt} · Feels like ${Math.round(cur.apparent_temperature)}°`;
-        document.getElementById("ui-wind").innerText = `💨 ${Math.round(cur.wind_speed_10m)} mph`;
-        document.getElementById("ui-hum").innerText = `💧 ${Math.round(cur.relative_humidity_2m)}% humidity`;
-        document.getElementById("ui-rain").innerText = `☔ ${cur.precipitation > 0 ? '>0' : '0'}% precip`;
-        document.getElementById("ui-uv").innerText = `☀️ UV ${Math.round(master.raw.daily.uv_index_max[0] || 0)}`;
-        document.getElementById("ui-hilo").innerText = `⬆ ${Math.round(master.raw.daily.temperature_2m_max[0])}° / ⬇ ${Math.round(master.raw.daily.temperature_2m_min[0])}°`;
-
-        const absMin = Math.min(...master.raw.daily.temperature_2m_min);
-        const absMax = Math.max(...master.raw.daily.temperature_2m_max);
-
-        let listHTML = "";
-        let todayScoreObj = null;
-
-        const activeConfig = SCORING_PROFILES["default"];
-        const dayKeys = Object.keys(master.structuredDays).slice(0, 10);
-        
-        dayKeys.forEach((dateStr, idx) => {
-            const entries = master.structuredDays[dateStr];
-            const daytime = entries.filter(e => e.hour >= 7 && e.hour <= 19);
-
-            // Execute the isolated daily aggregation logic
-            const dayResult = calculateDailyScore(daytime, activeConfig);
-
-            const dayMin = master.raw.daily.temperature_2m_min[idx];
-            const dayMax = master.raw.daily.temperature_2m_max[idx];
-            const maxPrecip = master.raw.daily.precipitation_probability_max[idx];
-            const meta = getWeatherMeta(master.raw.daily.weather_code[idx]);
-            const scoreStyle = getScoreStyling(dayResult.score);
-            
-            const leftPct = ((dayMin - absMin) / (absMax - absMin)) * 100;
-            const widthPct = ((dayMax - dayMin) / (absMax - absMin)) * 100;
-
-            const dObj = new Date(dateStr + "T12:00:00");
-            const dayName = idx === 0 ? "Today" : dObj.toLocaleDateString("en-US", { weekday: "short" });
-            const monthDay = dObj.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-
-            if(idx === 0) todayScoreObj = { score: Math.round(dayResult.score), style: scoreStyle, dateTxt: monthDay };
-
-            // Render dynamic pill stats generated by the engines
-            let breakdownHTML = "";
-            if (dayResult.breakdown) {
-                Object.values(dayResult.breakdown).forEach(item => {
-                    const color = item.score >= 80 ? "var(--green-light)" : item.score >= 50 ? "var(--yellow-light)" : "var(--red-light)";
-                    breakdownHTML += `<span>${item.label}: <strong style="color:${color}">${Math.round(item.score)}/100</strong> (Measured: ${Math.round(item.val)}${item.unit})</span>`;
-                });
-            }
-
-            listHTML += `
-            <div class="f-item">
-                <div class="f-row" onclick="toggleReason(${idx})">
-                    <div class="f-date"><b>${dayName}</b><span>${monthDay}</span></div>
-                    <div class="f-icon">${meta.icon}</div>
-                    <div class="f-desc">${meta.txt}</div>
-                    <div class="f-temp muted">${Math.round(dayMin)}°</div>
-                    <div class="bar-wrapper">
-                        <div class="bar-fill" style="margin-left: ${leftPct}%; width: ${widthPct}%;"></div>
-                    </div>
-                    <div class="f-temp">${Math.round(dayMax)}°</div>
-                    <div class="f-precip">${maxPrecip > 0 ? maxPrecip + '%' : '-'}</div>
-                    <div class="score-pill ${scoreStyle.cls}">outdoor ${Math.round(dayResult.score)}</div>
-                </div>
-                <div class="reason-card" id="reason-${idx}">
-                    <strong style="margin-bottom:8px; display:block;">Perception Engine Breakdown (Peak Window):</strong>
-                    <div class="reason-metrics">
-                        ${breakdownHTML}
-                    </div>
-                </div>
-            </div>
-            `;
-        });
-
-        document.getElementById("forecast-list").innerHTML = listHTML;
-        
-        document.getElementById("ui-top-score").innerText = todayScoreObj.score;
-        document.getElementById("ui-top-score").style.color = todayScoreObj.style.color;
-        document.getElementById("ui-top-score").nextElementSibling.innerText = todayScoreObj.style.label;
-        document.getElementById("ui-top-date").innerText = todayScoreObj.dateTxt;
-
-        document.getElementById("results").style.display = "none";
-        document.getElementById("app-wrapper").style.display = "block";
-
-    } catch(e) {
-        console.error(e);
-        document.getElementById("results").innerText = "Framework Error. Please try again.";
-    }
-}
-</script>
-
-</body>
-</html><!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Weather Reality Pro V3</title>
-
-<style>
-:root {
-    --bg-base: #09101d;
-    --bg-panel: #111a2c;
-    --bg-panel-hover: #162138;
-    --text-main: #f8fafc;
-    --text-muted: #94a3b8;
-    --text-dark: #64748b;
-    --accent: #38bdf8;
-    --bar-bg: #1e293b;
-    
-    --green: #22c55e;
-    --green-light: #4ade80;
-    --green-bg: rgba(34, 197, 94, 0.15);
-    
-    --yellow: #eab308;
-    --yellow-light: #fde047;
-    --yellow-bg: rgba(234, 179, 8, 0.15);
-    
-    --orange: #f97316;
-    --orange-light: #fdba74;
-    --orange-bg: rgba(249, 115, 22, 0.15);
-    
-    --red: #ef4444;
-    --red-light: #fca5a5;
-    --red-bg: rgba(239, 68, 68, 0.15);
-}
-
-body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, sans-serif;
-    background: var(--bg-base);
-    color: var(--text-main);
-    margin: 0;
-    padding: 20px;
-    -webkit-font-smoothing: antialiased;
-}
-
-/* Search Area */
-.search-container {
-    max-width: 800px;
-    margin: 0 auto 30px auto;
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-input {
-    flex-grow: 1;
-    min-width: 200px;
-    background: var(--bg-panel);
-    border: 1px solid var(--bar-bg);
-    padding: 14px 18px;
-    border-radius: 12px;
-    color: white;
-    font-size: 15px;
-    outline: none;
-}
-
-input:focus { border-color: var(--accent); }
-
-button {
-    background: var(--accent);
-    color: #000;
-    border: none;
-    padding: 14px 20px;
-    border-radius: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    font-size: 14px;
-}
-
-button:hover { background: #7dd3fc; }
-
-.fav-btn {
-    background: var(--bg-panel);
-    color: var(--text-muted);
-    border: 1px solid var(--bar-bg);
-}
-
-.fav-btn:hover { background: var(--bg-panel-hover); color: white; }
-
-/* Main App Wrapper */
-#app-wrapper {
-    max-width: 800px;
-    margin: 0 auto;
-    display: none;
-}
-
-/* Top Dashboard */
-.current-dash {
-    background: transparent;
-    padding: 10px 0 30px 0;
-}
-
-.loc-name {
-    font-size: 13px;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    margin-bottom: 5px;
-    font-weight: 600;
-}
-
-.flex-between {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-}
-
-.temp-huge {
-    font-size: 96px;
-    font-weight: 200;
-    line-height: 1;
-    margin: 0;
-}
-
-.desc-text {
-    font-size: 18px;
-    color: var(--text-muted);
-    margin-top: 10px;
-}
-
-.gauge-box {
-    text-align: right;
-    padding-bottom: 10px;
-}
-.gauge-label {
-    font-size: 11px;
-    letter-spacing: 1px;
-    color: var(--text-dark);
-    text-transform: uppercase;
-    margin-bottom: 2px;
-    font-weight: 600;
-}
-.gauge-val {
-    font-size: 26px;
-    font-weight: 600;
-}
-.gauge-date {
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-top: 2px;
-}
-
-.metrics-row {
-    display: flex;
-    gap: 20px;
-    margin-top: 25px;
-    font-size: 14px;
-    color: var(--text-muted);
-    font-weight: 500;
-    flex-wrap: wrap;
-}
-
-/* 10-Day Forecast List */
-.forecast-section {
-    margin-top: 20px;
-}
-.section-title {
-    font-size: 12px;
-    letter-spacing: 1.5px;
-    color: var(--text-dark);
-    font-weight: 600;
-    margin-bottom: 15px;
-}
-
-.f-item {
-    margin-bottom: 8px;
-}
-
-.f-row {
-    display: grid;
-    grid-template-columns: 80px 40px 1fr 40px 120px 40px 50px 90px;
-    align-items: center;
-    background: var(--bg-panel);
-    padding: 16px 20px;
-    border-radius: 16px;
-    cursor: pointer;
-    transition: transform 0.2s, background 0.2s;
-    user-select: none;
-}
-
-.f-row:hover {
-    background: var(--bg-panel-hover);
-    transform: scale(1.005);
-}
-
-.f-date { font-size: 15px; font-weight: 500; }
-.f-date span { display: block; font-size: 12px; color: var(--text-dark); margin-top: 2px; }
-
-.f-icon { font-size: 20px; text-align: center; }
-.f-desc { font-size: 14px; color: var(--text-muted); padding-left: 10px; }
-.f-temp { font-size: 15px; font-weight: 500; text-align: center; }
-.f-temp.muted { color: var(--text-muted); }
-
-/* Dynamic Temp Bar */
-.bar-wrapper {
-    height: 4px;
-    background: var(--bar-bg);
-    border-radius: 2px;
-    margin: 0 10px;
-    position: relative;
-    overflow: hidden;
-}
-.bar-fill {
-    position: absolute;
-    height: 100%;
-    border-radius: 2px;
-    background: linear-gradient(90deg, #3b82f6, #f97316);
-}
-
-.f-precip { font-size: 13px; color: var(--accent); text-align: right; padding-right: 15px; }
-
-/* Score Pills */
-.score-pill {
-    padding: 6px 0;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 600;
-    text-align: center;
-    border: 1px solid transparent;
-}
-.pill-green { border-color: var(--green); color: var(--green-light); background: var(--green-bg); }
-.pill-yellow { border-color: var(--yellow); color: var(--yellow-light); background: var(--yellow-bg); }
-.pill-orange { border-color: var(--orange); color: var(--orange-light); background: var(--orange-bg); }
-.pill-red { border-color: var(--red); color: var(--red-light); background: var(--red-bg); }
-
-/* Expandable Reason Card */
-.reason-card {
-    display: none;
-    background: #0d1524;
-    border: 1px solid var(--bar-bg);
-    border-top: none;
-    border-bottom-left-radius: 16px;
-    border-bottom-right-radius: 16px;
-    padding: 16px 20px;
-    margin-top: -6px;
-    font-size: 13px;
-    color: var(--text-muted);
-    line-height: 1.5;
-}
-
-.reason-card strong {
-    color: var(--text-main);
-}
-
-.reason-metrics {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 10px;
-    margin-top: 12px;
-    font-size: 12px;
-    color: var(--text-dark);
-}
-
-@media (max-width: 650px) {
-    .f-row { grid-template-columns: 70px 30px 1fr 80px; }
-    .f-temp, .bar-wrapper, .f-precip { display: none; }
-    .temp-huge { font-size: 72px; }
-}
-</style>
-</head>
-
-<body>
-
-<div class="search-container">
-    <input id="location" placeholder="Search city (e.g. San Francisco, CA)">
-    <button onclick="run()">Search</button>
-    <button class="fav-btn" onclick="searchFavorite('Revere, MA')">📍 Revere, MA</button>
-</div>
-
-<div id="results" style="text-align:center; color: #64748b; margin-top: 40px;">Enter a location to view the V3 Perception Framework Forecast.</div>
-
-<div id="app-wrapper">
-    <div class="current-dash">
-        <div class="loc-name" id="ui-loc">--</div>
-        
-        <div class="flex-between">
-            <h1 class="temp-huge" id="ui-temp">--°</h1>
-            
-            <div class="gauge-box">
-                <div class="gauge-label">Outdoor Score</div>
-                <div class="gauge-val" id="ui-top-score">--</div>
-                <div class="gauge-date" id="ui-top-date">--</div>
-            </div>
-        </div>
-        
-        <div class="desc-text" id="ui-desc">--</div>
-        
-        <div class="metrics-row">
-            <span id="ui-wind">💨 --</span>
-            <span id="ui-hum">💧 --</span>
-            <span id="ui-rain">☔ --</span>
-            <span id="ui-uv">☀️ --</span>
-            <span id="ui-hilo">⬆ -- / ⬇ --</span>
-        </div>
-    </div>
-    
-    <div class="forecast-section">
-        <div class="section-title">10-DAY FORECAST (CLICK FOR PERCEPTION SCORES)</div>
-        <div id="forecast-list"></div>
-    </div>
-</div>
-
-<script>
-document.getElementById("location").addEventListener("keypress", function(event) {
-    if (event.key === "Enter") run();
+// User clicks Geolocation dot
+els.geoBtn.addEventListener('click', () => {
+  if (!navigator.geolocation){
+    setStatus('Geolocation not available in this browser.', true);
+    return;
+  }
+  setStatus('Requesting your location…');
+  navigator.geolocation.getCurrentPosition(
+    (pos) => runForCoords(pos.coords.latitude, pos.coords.longitude, 'Current location'),
+    () => setStatus('Location permission denied.', true)
+  );
 });
-
-function searchFavorite(loc) {
-    document.getElementById("location").value = loc;
-    run();
-}
-
-function toggleReason(idx) {
-    const el = document.getElementById(`reason-${idx}`);
-    el.style.display = el.style.display === "block" ? "none" : "block";
-}
-
-const wmoMap = {
-    0: { txt: "Sunny", icon: "☀️" }, 1: { txt: "Mainly Sunny", icon: "🌤" },
-    2: { txt: "Partly Cloudy", icon: "⛅" }, 3: { txt: "Cloudy", icon: "☁️" },
-    45: { txt: "Foggy", icon: "🌫" }, 48: { txt: "Rime Fog", icon: "🌫" },
-    51: { txt: "Light Drizzle", icon: "🌧" }, 53: { txt: "Drizzle", icon: "🌧" },
-    55: { txt: "Heavy Drizzle", icon: "🌧" }, 61: { txt: "Light Rain", icon: "🌦" },
-    63: { txt: "Rain", icon: "🌧" }, 65: { txt: "Heavy Rain", icon: "🌧" },
-    71: { txt: "Light Snow", icon: "🌨" }, 73: { txt: "Snow", icon: "❄️" },
-    75: { txt: "Heavy Snow", icon: "❄️" }, 95: { txt: "Thunderstorms", icon: "⛈" }
-};
-function getWeatherMeta(code) { return wmoMap[code] || { txt: "Mixed", icon: "🌥" }; }
-
-
-// =========================================================================
-// 1. DATA-DRIVEN CONFIGURATIONS (Profiles)
-// =========================================================================
-const SCORING_PROFILES = {
-    "default": {
-        "thermal": {
-            "weight": 0.45,
-            "label": "Thermal Comfort",
-            "perceivedTemperature": {
-                "humidityFactor": 0.3, // Adds heat if dew point > 60
-                "windCooling": 0.4,    // Deducts temp based on wind speed
-                "cloudCooling": 8      // Max degrees to deduct if 100% cloudy (blocks solar radiation)
-            },
-            "comfortCurve": {
-                "type": "bell",
-                "parameters": { "center": 72, "sigma": 15 }
-            }
-        },
-        "rain": {
-            "weight": 0.30,
-            "label": "Precipitation",
-            "comfortCurve": {
-                "type": "exponential",
-                "parameters": { "ideal": 0, "decayRate": 15 }
-            }
-        },
-        "sky": {
-            "weight": 0.15,
-            "label": "Sky Conditions",
-            "comfortCurve": {
-                "type": "linear",
-                "parameters": { "ideal": 20, "tolerance": 80 }
-            }
-        },
-        "wind": {
-            "weight": 0.10,
-            "label": "Wind Intensity",
-            "comfortCurve": {
-                "type": "oneSidedUpper",
-                "parameters": { "ideal": 5, "maxAllowed": 25 }
-            }
-        }
-    }
-};
-
-
-// =========================================================================
-// 2. PARAMETER-DRIVEN CURVE REGISTRY
-// =========================================================================
-const CurveRegistry = {
-    bell: (val, params) => {
-        const dist = Math.abs(val - params.center);
-        const score = 100 * Math.exp(-(dist * dist) / (2 * params.sigma * params.sigma));
-        return Math.max(0, Math.min(100, score));
-    },
-    linear: (val, params) => {
-        const dist = Math.abs(val - params.ideal);
-        const score = 100 - ((dist / params.tolerance) * 100);
-        return Math.max(0, Math.min(100, score));
-    },
-    oneSidedUpper: (val, params) => {
-        if (val <= params.ideal) return 100;
-        if (val >= params.maxAllowed) return 0;
-        const dist = val - params.ideal;
-        const score = 100 - ((dist / (params.maxAllowed - params.ideal)) * 100);
-        return Math.max(0, Math.min(100, score));
-    },
-    exponential: (val, params) => {
-        if (val <= params.ideal) return 100;
-        const dist = val - params.ideal;
-        const score = 100 * Math.exp(-dist / params.decayRate);
-        return Math.max(0, Math.min(100, score));
-    }
-};
-
-
-// =========================================================================
-// 3. PERCEPTION ENGINE REGISTRY
-// =========================================================================
-// Each engine holds its own internal logic to generate a final normalized score
-const EngineRegistry = {
-    thermal: {
-        score: (weatherData, config) => {
-            let perceived = weatherData.actualTemp;
-            
-            // 1. Humidity (Dew Point) Penalty 
-            if (weatherData.dewPoint > 60) {
-                perceived += (weatherData.dewPoint - 60) * config.perceivedTemperature.humidityFactor;
-            }
-            
-            // 2. Wind Cooling
-            perceived -= weatherData.wind * config.perceivedTemperature.windCooling;
-            
-            // 3. Cloud Cooling (Blocking Solar Radiation)
-            perceived -= (weatherData.clouds / 100) * config.perceivedTemperature.cloudCooling;
-
-            // Apply curve to the final perceived temperature
-            const score = CurveRegistry[config.comfortCurve.type](perceived, config.comfortCurve.parameters);
-            
-            return { score: score, val: perceived, label: config.label, unit: "°" };
-        }
-    },
-    rain: {
-        score: (weatherData, config) => {
-            const val = weatherData.rainProb;
-            const score = CurveRegistry[config.comfortCurve.type](val, config.comfortCurve.parameters);
-            return { score: score, val: val, label: config.label, unit: "%" };
-        }
-    },
-    sky: {
-        score: (weatherData, config) => {
-            // Note: Cloud cover is shared. Thermal uses it for cooling, Sky uses it for visual pleasantness.
-            const val = weatherData.clouds;
-            const score = CurveRegistry[config.comfortCurve.type](val, config.comfortCurve.parameters);
-            return { score: score, val: val, label: config.label, unit: "%" };
-        }
-    },
-    wind: {
-        score: (weatherData, config) => {
-            const val = weatherData.wind;
-            const score = CurveRegistry[config.comfortCurve.type](val, config.comfortCurve.parameters);
-            return { score: score, val: val, label: config.label, unit: "mph" };
-        }
-    }
-};
-
-
-// =========================================================================
-// 4. THE COORDINATOR
-// =========================================================================
-function computeOutdoorScore(weatherData, profileConfig) {
-    let totalScore = 0;
-    const breakdown = {};
-
-    for (const [engineId, config] of Object.entries(profileConfig)) {
-        if (EngineRegistry[engineId]) {
-            const result = EngineRegistry[engineId].score(weatherData, config);
-            breakdown[engineId] = result;
-            totalScore += result.score * config.weight;
-        }
-    }
-
-    return {
-        finalScore: Math.max(0, Math.min(100, totalScore)),
-        breakdown: breakdown
-    };
-}
-
-
-// =========================================================================
-// 5. DAILY AGGREGATION STRATEGY (Isolated and Swappable)
-// =========================================================================
-function calculateDailyScore(daytimeHours, activeConfig) {
-    // Current Strategy: Search for the best continuous 4-hour window
-    let dailyBestScore = -1;
-    let bestBreakdown = null;
-
-    for(let i = 0; i <= daytimeHours.length - 4; i++) {
-        const windowHours = daytimeHours.slice(i, i + 4);
-        let windowTotal = 0;
-        let lastBreakdown = null;
-
-        windowHours.forEach(h => {
-            const result = computeOutdoorScore(h, activeConfig);
-            windowTotal += result.finalScore;
-            lastBreakdown = result.breakdown;
-        });
-        
-        const avgScore = windowTotal / 4;
-        if(avgScore > dailyBestScore) {
-            dailyBestScore = avgScore;
-            bestBreakdown = lastBreakdown;
-        }
-    }
-    
-    if (dailyBestScore < 0) dailyBestScore = 0;
-    
-    return { score: dailyBestScore, breakdown: bestBreakdown };
-}
-
-
-// ==========================================
-// MASTER WEATHER DATA REPOSITORY 
-// ==========================================
-async function fetchMasterWeatherData(lat, lon) {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-        `&current=temperature_2m,apparent_temperature,relative_humidity_2m,is_day,precipitation,weather_code,cloud_cover,wind_speed_10m` +
-        `&hourly=temperature_2m,dew_point_2m,precipitation_probability,weather_code,cloud_cover,wind_speed_10m` +
-        `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,uv_index_max` +
-        `&forecast_days=10&timezone=auto&temperature_unit=fahrenheit&wind_speed_unit=mph`;
-
-    const res = await fetch(url);
-    const data = await res.json();
-    const structuredDays = {};
-
-    data.hourly.time.forEach((t, i) => {
-        const dateStr = t.split("T")[0];
-        const hour = parseInt(t.split("T")[1].slice(0, 2));
-
-        if (!structuredDays[dateStr]) structuredDays[dateStr] = [];
-
-        // Raw variables stored identically. The engines decide how to use them.
-        structuredDays[dateStr].push({
-            time: t,
-            hour: hour,
-            actualTemp: data.hourly.temperature_2m[i],
-            dewPoint: data.hourly.dew_point_2m[i],
-            rainProb: data.hourly.precipitation_probability[i] || 0,
-            wind: data.hourly.wind_speed_10m[i] || 0,
-            clouds: data.hourly.cloud_cover[i] || 0
-        });
-    });
-
-    return { raw: data, structuredDays };
-}
-
-function getScoreStyling(score) {
-    if(score >= 80) return { label: "Excellent", cls: "pill-green", color: "var(--green-light)" };
-    if(score >= 60) return { label: "Good", cls: "pill-yellow", color: "var(--yellow-light)" };
-    if(score >= 40) return { label: "Fair", cls: "pill-orange", color: "var(--orange-light)" };
-    return { label: "Poor", cls: "pill-red", color: "var(--red-light)" };
-}
-
-async function run() {
-    const loc = document.getElementById("location").value.trim();
-    if(!loc) return;
-
-    document.getElementById("results").style.display = "block";
-    document.getElementById("results").innerText = "Executing Perception Framework...";
-    document.getElementById("app-wrapper").style.display = "none";
-
-    try {
-        const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(loc)}&count=1`);
-        const geoData = await geoRes.json();
-        if(!geoData.results) {
-            document.getElementById("results").innerText = "Location not found.";
-            return;
-        }
-        
-        const { latitude, longitude, name, admin1 } = geoData.results[0];
-
-        const master = await fetchMasterWeatherData(latitude, longitude);
-        const cur = master.raw.current;
-        const curMeta = getWeatherMeta(cur.weather_code);
-
-        // Top Dashboard UI
-        document.getElementById("ui-loc").innerText = `${name}, ${admin1 || ""}`;
-        document.getElementById("ui-temp").innerText = `${Math.round(cur.temperature_2m)}°`;
-        document.getElementById("ui-desc").innerText = `${curMeta.txt} · Feels like ${Math.round(cur.apparent_temperature)}°`;
-        document.getElementById("ui-wind").innerText = `💨 ${Math.round(cur.wind_speed_10m)} mph`;
-        document.getElementById("ui-hum").innerText = `💧 ${Math.round(cur.relative_humidity_2m)}% humidity`;
-        document.getElementById("ui-rain").innerText = `☔ ${cur.precipitation > 0 ? '>0' : '0'}% precip`;
-        document.getElementById("ui-uv").innerText = `☀️ UV ${Math.round(master.raw.daily.uv_index_max[0] || 0)}`;
-        document.getElementById("ui-hilo").innerText = `⬆ ${Math.round(master.raw.daily.temperature_2m_max[0])}° / ⬇ ${Math.round(master.raw.daily.temperature_2m_min[0])}°`;
-
-        const absMin = Math.min(...master.raw.daily.temperature_2m_min);
-        const absMax = Math.max(...master.raw.daily.temperature_2m_max);
-
-        let listHTML = "";
-        let todayScoreObj = null;
-
-        const activeConfig = SCORING_PROFILES["default"];
-        const dayKeys = Object.keys(master.structuredDays).slice(0, 10);
-        
-        dayKeys.forEach((dateStr, idx) => {
-            const entries = master.structuredDays[dateStr];
-            const daytime = entries.filter(e => e.hour >= 7 && e.hour <= 19);
-
-            // Execute the isolated daily aggregation logic
-            const dayResult = calculateDailyScore(daytime, activeConfig);
-
-            const dayMin = master.raw.daily.temperature_2m_min[idx];
-            const dayMax = master.raw.daily.temperature_2m_max[idx];
-            const maxPrecip = master.raw.daily.precipitation_probability_max[idx];
-            const meta = getWeatherMeta(master.raw.daily.weather_code[idx]);
-            const scoreStyle = getScoreStyling(dayResult.score);
-            
-            const leftPct = ((dayMin - absMin) / (absMax - absMin)) * 100;
-            const widthPct = ((dayMax - dayMin) / (absMax - absMin)) * 100;
-
-            const dObj = new Date(dateStr + "T12:00:00");
-            const dayName = idx === 0 ? "Today" : dObj.toLocaleDateString("en-US", { weekday: "short" });
-            const monthDay = dObj.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-
-            if(idx === 0) todayScoreObj = { score: Math.round(dayResult.score), style: scoreStyle, dateTxt: monthDay };
-
-            // Render dynamic pill stats generated by the engines
-            let breakdownHTML = "";
-            if (dayResult.breakdown) {
-                Object.values(dayResult.breakdown).forEach(item => {
-                    const color = item.score >= 80 ? "var(--green-light)" : item.score >= 50 ? "var(--yellow-light)" : "var(--red-light)";
-                    breakdownHTML += `<span>${item.label}: <strong style="color:${color}">${Math.round(item.score)}/100</strong> (Measured: ${Math.round(item.val)}${item.unit})</span>`;
-                });
-            }
-
-            listHTML += `
-            <div class="f-item">
-                <div class="f-row" onclick="toggleReason(${idx})">
-                    <div class="f-date"><b>${dayName}</b><span>${monthDay}</span></div>
-                    <div class="f-icon">${meta.icon}</div>
-                    <div class="f-desc">${meta.txt}</div>
-                    <div class="f-temp muted">${Math.round(dayMin)}°</div>
-                    <div class="bar-wrapper">
-                        <div class="bar-fill" style="margin-left: ${leftPct}%; width: ${widthPct}%;"></div>
-                    </div>
-                    <div class="f-temp">${Math.round(dayMax)}°</div>
-                    <div class="f-precip">${maxPrecip > 0 ? maxPrecip + '%' : '-'}</div>
-                    <div class="score-pill ${scoreStyle.cls}">outdoor ${Math.round(dayResult.score)}</div>
-                </div>
-                <div class="reason-card" id="reason-${idx}">
-                    <strong style="margin-bottom:8px; display:block;">Perception Engine Breakdown (Peak Window):</strong>
-                    <div class="reason-metrics">
-                        ${breakdownHTML}
-                    </div>
-                </div>
-            </div>
-            `;
-        });
-
-        document.getElementById("forecast-list").innerHTML = listHTML;
-        
-        document.getElementById("ui-top-score").innerText = todayScoreObj.score;
-        document.getElementById("ui-top-score").style.color = todayScoreObj.style.color;
-        document.getElementById("ui-top-score").nextElementSibling.innerText = todayScoreObj.style.label;
-        document.getElementById("ui-top-date").innerText = todayScoreObj.dateTxt;
-
-        document.getElementById("results").style.display = "none";
-        document.getElementById("app-wrapper").style.display = "block";
-
-    } catch(e) {
-        console.error(e);
-        document.getElementById("results").innerText = "Framework Error. Please try again.";
-    }
-}
 </script>
-
 </body>
 </html>
